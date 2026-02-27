@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "AI Email Assistant",
+  "version": "0.1.0",
+  "description": "AI-powered email reply generator for Gmail.",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "host_permissions": ["https://mail.google.com/*"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://mail.google.com/*"],
+      "js": ["content.js"]
+    }
+  ],
+  "action": {
+    "default_popup": "index.html"
+  }
+}
