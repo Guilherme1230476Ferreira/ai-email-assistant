@@ -13,6 +13,11 @@ jobs:
     name: Build & Test
     runs-on: self-hosted
 
+    
+    env:
+      CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+      CARGO_NET_GIT_FETCH_WITH_CLI: true
+
     defaults:
       run:
         working-directory: backend
