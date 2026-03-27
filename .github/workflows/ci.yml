@@ -17,15 +17,19 @@ jobs:
     name: Build & Test
     runs-on: self-hosted
 
-    steps:
-      - name: Clean workspace
-        run: |
-          echo "Cleaning up previous workspace"
-          sudo rm -rf "$GITHUB_WORKSPACE"
-          mkdir -p "$GITHUB_WORKSPACE"
-          sudo chown -R $USER:$USER "$GITHUB_WORKSPACE"
-        shell: bash
+    env:
+      CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+      CARGO_NET_GIT_FETCH_WITH_CLI: true
+      CARGO_HTTP_TIMEOUT: 120
+      CARGO_HTTP_CHECK_REVOCABLE: false
+      # This tells SQLx to use the cached queries instead of a live DB
+      SQLX_OFFLINE: true
 
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
       - uses: actions/checkout@v4
 
       - name: Install Rust toolchain
@@ -41,31 +45,12 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('backend/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-
 
-      - name: Setup Environment
-        env:
-          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
-          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
-          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
-        run: |
-          echo "POSTGRES_USER=$POSTGRES_USER" > .env
-          echo "POSTGRES_PASSWORD=$POSTGRES_PASSWORD" >> .env
-          echo "POSTGRES_DB=$POSTGRES_DB" >> .env
-          echo "DATABASE_URL=postgres://$POSTGRES_USER:$POSTGRES_PASSWORD@localhost:5432/$POSTGRES_DB" >> $GITHUB_ENV
-        working-directory: ./
-
-      - name: Start services
-        run: docker compose up -d
-        working-directory: ./
-
       - name: Run cargo check
         run: cargo check --verbose
         working-directory: ./backend
 
       - name: Run tests
         run: cargo test
-
- #     - name: Clippy (lint)
-#        run: cargo clippy -- -D warnings
 
       - name: Check formatting
         run: cargo fmt -- --check
