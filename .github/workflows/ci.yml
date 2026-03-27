@@ -38,8 +38,12 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('backend/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-
 
-      - name: Check (compile)
-        run: cargo check
+      - name: Test network connectivity
+        run: curl -v https://index.crates.io/
+
+      - name: Run cargo check
+        run: cargo check --verbose
+        working-directory: ./backend
 
       - name: Run tests
         run: cargo test
