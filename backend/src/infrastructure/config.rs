@@ -1,6 +1,6 @@
 use std::env;
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 
 /// Application configuration loaded from environment variables.
 pub struct Config {

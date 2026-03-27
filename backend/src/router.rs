@@ -1,7 +1,7 @@
 /// All route mappings in a single place.
 use std::sync::Arc;
 
-use axum::{routing::get, routing::post, Router};
+use axum::{Router, routing::get, routing::post};
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
@@ -53,8 +53,14 @@ pub fn build_router(state: Arc<AppState>) -> Router {
             "/api/admin/llm-provider-api-key",
             get(admin_handler::get_api_key).post(admin_handler::update_api_key),
         )
-        .route("/api/admin/users", post(admin_handler::create_user).get(admin_handler::get_users))
-        .route("/api/admin/roles", post(role_handler::create_role).get(role_handler::get_roles))
+        .route(
+            "/api/admin/users",
+            post(admin_handler::create_user).get(admin_handler::get_users),
+        )
+        .route(
+            "/api/admin/roles",
+            post(role_handler::create_role).get(role_handler::get_roles),
+        )
         .route(
             "/api/admin/users/{id}/role",
             post(admin_handler::update_user_role),

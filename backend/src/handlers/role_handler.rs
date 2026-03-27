@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use axum::{extract::State, http::StatusCode, Json};
+use axum::{Json, extract::State, http::StatusCode};
 
 use crate::{
     models::dto::{CreateRoleRequest, ErrorResponse, RoleResponse},
@@ -56,7 +56,7 @@ pub async fn create_role(
                 Json(ErrorResponse {
                     error: format!("Failed to create role: {}", e),
                 }),
-            ))
+            ));
         }
     };
 
@@ -99,7 +99,7 @@ pub async fn get_roles(
                 Json(ErrorResponse {
                     error: "Failed to retrieve roles.".to_string(),
                 }),
-            ))
+            ));
         }
     };
 

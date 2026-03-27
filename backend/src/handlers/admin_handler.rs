@@ -3,16 +3,16 @@
 use std::sync::Arc;
 
 use axum::{
+    Json,
     extract::{Path, State},
     http::StatusCode,
-    Json,
 };
 use uuid::Uuid;
 
 use crate::{
     models::dto::{
-        ApiKeyResponse, CreateUserRequest, ErrorResponse, UpdateApiKeyRequest, UpdateUserRoleRequest,
-        UserResponse,
+        ApiKeyResponse, CreateUserRequest, ErrorResponse, UpdateApiKeyRequest,
+        UpdateUserRoleRequest, UserResponse,
     },
     services::api_key_validator,
     state::AppState,
@@ -113,25 +113,26 @@ pub async fn create_user(
                 Json(ErrorResponse {
                     error: "Failed to hash password.".to_string(),
                 }),
-            ))
+            ));
         }
     };
 
     // Get the ID for the default 'user' role
-    let user_role_id = match sqlx::query_scalar::<_, Uuid>("SELECT id FROM roles WHERE name = 'user'")
-        .fetch_one(&state.db)
-        .await
-    {
-        Ok(id) => id,
-        Err(_) => {
-            return Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse {
-                    error: "Default 'user' role not found in database.".to_string(),
-                }),
-            ))
-        }
-    };
+    let user_role_id =
+        match sqlx::query_scalar::<_, Uuid>("SELECT id FROM roles WHERE name = 'user'")
+            .fetch_one(&state.db)
+            .await
+        {
+            Ok(id) => id,
+            Err(_) => {
+                return Err((
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ErrorResponse {
+                        error: "Default 'user' role not found in database.".to_string(),
+                    }),
+                ));
+            }
+        };
 
     // Insert user into the database
     let new_user = match sqlx::query_as!(
@@ -163,7 +164,7 @@ pub async fn create_user(
                 Json(ErrorResponse {
                     error: "Failed to create user.".to_string(),
                 }),
-            ))
+            ));
         }
     };
 
@@ -225,7 +226,7 @@ pub async fn update_user_role(
                 Json(ErrorResponse {
                     error: "Failed to update user role.".to_string(),
                 }),
-            ))
+            ));
         }
     };
 
@@ -266,7 +267,7 @@ pub async fn get_users(
                 Json(ErrorResponse {
                     error: "Failed to retrieve users.".to_string(),
                 }),
-            ))
+            ));
         }
     };
 
@@ -281,4 +282,3 @@ pub async fn get_users(
 
     Ok(Json(user_responses))
 }
-

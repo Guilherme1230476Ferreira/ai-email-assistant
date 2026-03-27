@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 
 pub async fn validate_api_key(api_key: &str, client: &reqwest::Client) -> Result<()> {
     if api_key.trim().is_empty() {
