@@ -21,6 +21,8 @@ jobs:
     env:
       CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
       CARGO_NET_GIT_FETCH_WITH_CLI: true
+      CARGO_HTTP_TIMEOUT: 120  # Increase timeout to 2 minutes
+      CARGO_HTTP_CHECK_REVOCABLE: false
 
     defaults:
       run:
