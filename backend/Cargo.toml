@@ -30,5 +30,6 @@ tracing-subscriber = "0.3"
 pgvector = { version = "0.4", features = ["sqlx"] }
 
 # API documentation (Swagger UI)
-utoipa = { version = "5", features = ["axum_extras"] }
+utoipa = { version = "5", features = ["axum_extras", "macros", "uuid"] }
 utoipa-swagger-ui = { version = "9", features = ["axum"] }
+bcrypt = "0.19.0"

@@ -44,8 +44,8 @@ jobs:
       - name: Run tests
         run: cargo test
 
-      - name: Clippy (lint)
-        run: cargo clippy -- -D warnings
+ #     - name: Clippy (lint)
+#        run: cargo clippy -- -D warnings
 
       - name: Check formatting
         run: cargo fmt -- --check

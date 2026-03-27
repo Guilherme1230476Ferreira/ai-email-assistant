@@ -5,12 +5,18 @@ use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use uuid::Uuid;
 
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow, utoipa::ToSchema)]
+pub struct Role {
+    pub id: Uuid,
+    pub name: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct User {
     pub id: Uuid,
     pub email: String,
     pub password_hash: String,
-    pub is_admin: bool,
+    pub role_id: Uuid,
     pub created_at: DateTime<Utc>,
 }
 

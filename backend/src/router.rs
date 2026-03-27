@@ -1,31 +1,39 @@
 /// All route mappings in a single place.
+use std::sync::Arc;
+
 use axum::{routing::get, routing::post, Router};
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
-use crate::handlers::{admin_handler, email_handler};
+use crate::handlers::{admin_handler, role_handler};
 use crate::models::dto;
+use crate::state::AppState;
 
 #[derive(OpenApi)]
 #[openapi(
     paths(
-        email_handler::generate_reply,
-        email_handler::get_history,
-        admin_handler::get_settings,
-        admin_handler::update_settings,
-        admin_handler::get_logs,
+        admin_handler::get_api_key,
+        admin_handler::update_api_key,
+        admin_handler::create_user,
+        admin_handler::update_user_role,
+        admin_handler::get_users,
+        role_handler::create_role,
+        role_handler::get_roles,
     ),
     components(schemas(
-        dto::GenerateReplyRequest,
-        dto::GenerateReplyResponse,
-        dto::UpdateSettingsRequest,
-        dto::SettingsResponse,
-        dto::HistoryQuery,
-        dto::LogsQuery,
+        dto::UpdateApiKeyRequest,
+        dto::ApiKeyResponse,
+        dto::CreateUserRequest,
+        dto::UpdateUserRoleRequest,
+        dto::UserResponse,
+        dto::CreateRoleRequest,
+        dto::RoleResponse,
+        dto::ErrorResponse,
+        crate::models::domain::Role,
     )),
     tags(
-        (name = "Emails", description = "Email processing endpoints"),
         (name = "Admin", description = "Backoffice administration endpoints"),
+        (name = "Roles", description = "Role management endpoints"),
         (name = "Health", description = "Health check")
     ),
     info(
@@ -36,19 +44,24 @@ use crate::models::dto;
 )]
 struct ApiDoc;
 
-pub fn build_router() -> Router {
+pub fn build_router(state: Arc<AppState>) -> Router {
     Router::new()
         // Health check
         .route("/health", get(health))
-        // Email endpoints
-        .route("/api/emails/generate-reply", post(email_handler::generate_reply))
-        .route("/api/emails/history", get(email_handler::get_history))
         // Admin endpoints
-        .route("/api/admin/settings", get(admin_handler::get_settings))
-        .route("/api/admin/settings", post(admin_handler::update_settings))
-        .route("/api/admin/logs", get(admin_handler::get_logs))
+        .route(
+            "/api/admin/llm-provider-api-key",
+            get(admin_handler::get_api_key).post(admin_handler::update_api_key),
+        )
+        .route("/api/admin/users", post(admin_handler::create_user).get(admin_handler::get_users))
+        .route("/api/admin/roles", post(role_handler::create_role).get(role_handler::get_roles))
+        .route(
+            "/api/admin/users/{id}/role",
+            post(admin_handler::update_user_role),
+        )
         // Swagger UI
         .merge(SwaggerUi::new("/swagger").url("/api-docs/openapi.json", ApiDoc::openapi()))
+        .with_state(state)
 }
 
 #[utoipa::path(
