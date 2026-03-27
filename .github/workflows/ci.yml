@@ -19,10 +19,10 @@ jobs:
 
     
     env:
+      DATABASE_URL: postgresql://${{ secrets.POSTGRES_USER }}:${{ secrets.POSTGRES_PASSWORD }}@localhost:5432/${{ secrets.POSTGRES_DB }}
       CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
-      CARGO_NET_GIT_FETCH_WITH_CLI: true
-      CARGO_HTTP_TIMEOUT: 120  # Increase timeout to 2 minutes
-      CARGO_HTTP_CHECK_REVOCABLE: false
+      CARGO_HTTP_TIMEOUT: 120
+      SQLX_OFFLINE: false
 
     defaults:
       run:
