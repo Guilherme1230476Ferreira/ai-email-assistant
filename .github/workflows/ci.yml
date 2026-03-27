@@ -17,18 +17,15 @@ jobs:
     name: Build & Test
     runs-on: self-hosted
 
-    
-    env:
-      DATABASE_URL: postgresql://${{ secrets.POSTGRES_USER }}:${{ secrets.POSTGRES_PASSWORD }}@localhost:5432/${{ secrets.POSTGRES_DB }}
-      CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
-      CARGO_HTTP_TIMEOUT: 120
-      SQLX_OFFLINE: false
-
-    defaults:
-      run:
-        working-directory: backend
-
     steps:
+      - name: Clean workspace
+        run: |
+          echo "Cleaning up previous workspace"
+          sudo rm -rf "$GITHUB_WORKSPACE"
+          mkdir -p "$GITHUB_WORKSPACE"
+          sudo chown -R $USER:$USER "$GITHUB_WORKSPACE"
+        shell: bash
+
       - uses: actions/checkout@v4
 
       - name: Install Rust toolchain
