@@ -1,73 +1,113 @@
-/// All route mappings in a single place.
-use std::sync::Arc;
-
-use axum::{Router, routing::get, routing::post};
+use axum::{routing::get, Router};
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
-use crate::handlers::{admin_handler, role_handler};
-use crate::models::dto;
-use crate::state::AppState;
+use crate::{
+    app_error::AppError,
+    handlers::{
+        admin_handler, auth_handler, email_handler,
+        role_handler,
+    },
+    models::{
+        domain::{Email, Role, User},
+        dto::{
+            CreateRoleRequest, CreateUserRequest, GenerateEmailRequest, LoginRequest,
+            LoginResponse, UpdateUserRoleRequest,
+        },
+    },
+    state::AppState,
+};
+use std::sync::Arc;
 
 #[derive(OpenApi)]
 #[openapi(
     paths(
-        admin_handler::get_api_key,
-        admin_handler::update_api_key,
-        admin_handler::create_user,
-        admin_handler::update_user_role,
-        admin_handler::get_users,
-        role_handler::create_role,
-        role_handler::get_roles,
+        auth_handler::login_handler,
+        admin_handler::create_user_handler,
+        admin_handler::get_users_handler,
+        admin_handler::update_user_role_handler,
+        admin_handler::delete_user_handler,
+        role_handler::create_role_handler,
+        role_handler::get_roles_handler,
+        role_handler::delete_role_handler,
+        email_handler::generate_email_handler,
+        health,
     ),
     components(schemas(
-        dto::UpdateApiKeyRequest,
-        dto::ApiKeyResponse,
-        dto::CreateUserRequest,
-        dto::UpdateUserRoleRequest,
-        dto::UserResponse,
-        dto::CreateRoleRequest,
-        dto::RoleResponse,
-        dto::ErrorResponse,
-        crate::models::domain::Role,
+        CreateRoleRequest,
+        CreateUserRequest,
+        GenerateEmailRequest,
+        LoginRequest,
+        LoginResponse,
+        UpdateUserRoleRequest,
+        AppError,
+        Role,
+        User,
+        Email,
     )),
     tags(
-        (name = "Admin", description = "Backoffice administration endpoints"),
-        (name = "Roles", description = "Role management endpoints"),
-        (name = "Health", description = "Health check")
+        (name = "Admin", description = "Admin management endpoints"),
+        (name = "Auth", description = "Authentication endpoints"),
+        (name = "Email", description = "Email generation endpoints"),
+        (name = "Health", description = "Health check endpoint"),
+        (name = "Role", description = "Role management endpoints")
     ),
-    info(
-        title = "AI Email Assistant API",
-        version = "0.1.0",
-        description = "REST API for the AI Email Assistant — generates intelligent email replies using LLM providers."
-    )
+    modifiers(&SecurityAddon)
 )]
 struct ApiDoc;
 
-pub fn build_router(state: Arc<AppState>) -> Router {
+struct SecurityAddon;
+
+impl utoipa::Modify for SecurityAddon {
+    fn modify(&self, openapi: &mut utoipa::openapi::OpenApi) {
+        let components = openapi.components.get_or_insert_with(Default::default);
+        components.add_security_scheme(
+            "bearer_auth",
+            utoipa::openapi::security::SecurityScheme::Http(
+                utoipa::openapi::security::HttpBuilder::new()
+                    .scheme(utoipa::openapi::security::HttpAuthScheme::Bearer)
+                    .bearer_format("JWT")
+                    .build(),
+            ),
+        )
+    }
+}
+
+pub async fn create_router(app_state: AppState) -> Router {
     Router::new()
-        // Health check
+        .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()))
         .route("/health", get(health))
-        // Admin endpoints
         .route(
-            "/api/admin/llm-provider-api-key",
-            get(admin_handler::get_api_key).post(admin_handler::update_api_key),
+            "/api/auth/login",
+            axum::routing::post(auth_handler::login_handler),
         )
         .route(
             "/api/admin/users",
-            post(admin_handler::create_user).get(admin_handler::get_users),
+            axum::routing::post(admin_handler::create_user_handler)
+                .get(admin_handler::get_users_handler),
+        )
+        .route(
+            "/api/admin/users/:user_id",
+            axum::routing::delete(admin_handler::delete_user_handler),
+        )
+        .route(
+            "/api/admin/users/:user_id/role",
+            axum::routing::put(admin_handler::update_user_role_handler),
         )
         .route(
             "/api/admin/roles",
-            post(role_handler::create_role).get(role_handler::get_roles),
+            axum::routing::post(role_handler::create_role_handler)
+                .get(role_handler::get_roles_handler),
         )
         .route(
-            "/api/admin/users/{id}/role",
-            post(admin_handler::update_user_role),
+            "/api/admin/roles/:role_id",
+            axum::routing::delete(role_handler::delete_role_handler),
         )
-        // Swagger UI
-        .merge(SwaggerUi::new("/swagger").url("/api-docs/openapi.json", ApiDoc::openapi()))
-        .with_state(state)
+        .route(
+            "/api/emails/generate",
+            axum::routing::post(email_handler::generate_email_handler),
+        )
+        .with_state(app_state)
 }
 
 #[utoipa::path(

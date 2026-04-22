@@ -4,6 +4,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use uuid::Uuid;
+use pgvector::Vector;
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow, utoipa::ToSchema)]
 pub struct Role {
@@ -11,7 +12,7 @@ pub struct Role {
     pub name: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow, utoipa::ToSchema)]
 pub struct User {
     pub id: Uuid,
     pub email: String,
@@ -32,25 +33,25 @@ pub struct Settings {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Clone, FromRow, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct Email {
     pub id: Uuid,
     pub user_id: Uuid,
-    pub sender: String,
-    pub subject: Option<String>,
-    pub body: String,
-    pub generated_reply: Option<String>,
-    pub is_archived: bool,
+    pub original_content: String,
+    pub generated_response: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Clone, FromRow, Serialize, Deserialize, utoipa::ToSchema)]
 pub struct EmailEmbedding {
     pub id: Uuid,
     pub email_id: Uuid,
+    #[serde(skip)]
+    pub content_embedding: Option<Vector>,
+    #[serde(skip)]
+    pub response_embedding: Option<Vector>,
     pub created_at: DateTime<Utc>,
-    // Note: embedding (vector) field handled separately via pgvector
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]

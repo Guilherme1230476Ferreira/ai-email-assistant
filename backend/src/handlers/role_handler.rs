@@ -1,9 +1,17 @@
 use std::sync::Arc;
 
-use axum::{Json, extract::State, http::StatusCode};
+use axum::{
+    extract::{Path, State},
+    http::StatusCode,
+    response::IntoResponse,
+    Json,
+};
+use uuid::Uuid;
 
 use crate::{
-    models::dto::{CreateRoleRequest, ErrorResponse, RoleResponse},
+    app_error::AppError,
+    models::{domain::Role, dto::CreateRoleRequest},
+    repositories::role_repo::RoleRepository,
     state::AppState,
 };
 
@@ -12,104 +20,65 @@ use crate::{
     path = "/api/admin/roles",
     request_body = CreateRoleRequest,
     responses(
-        (status = 201, description = "Role created successfully", body = RoleResponse),
-        (status = 409, description = "Role with this name already exists", body = ErrorResponse),
-        (status = 500, description = "Internal server error", body = ErrorResponse)
+        (status = 201, description = "Role created successfully", body = Role),
+        (status = 409, description = "Role already exists"),
+        (status = 500, description = "Internal server error")
     ),
-    tag = "Roles"
+    security(
+        ("bearer_auth" = [])
+    ),
+    tag = "Role"
 )]
-pub async fn create_role(
-    State(state): State<Arc<AppState>>,
-    Json(body): Json<CreateRoleRequest>,
-) -> Result<(StatusCode, Json<RoleResponse>), (StatusCode, Json<ErrorResponse>)> {
-    // Check if a role with the same name already exists
-    if let Ok(Some(_)) = sqlx::query("SELECT id FROM roles WHERE name = $1")
-        .bind(&body.name)
-        .fetch_optional(&state.db)
-        .await
-    {
-        return Err((
-            StatusCode::CONFLICT,
-            Json(ErrorResponse {
-                error: "Role with this name already exists".to_string(),
-            }),
-        ));
-    }
-
-    // Insert the new role into the database
-    let new_role = match sqlx::query_as!(
-        crate::models::domain::Role,
-        r#"
-        INSERT INTO roles (name)
-        VALUES ($1)
-        RETURNING id, name
-        "#,
-        body.name
-    )
-    .fetch_one(&state.db)
-    .await
-    {
-        Ok(role) => role,
-        Err(e) => {
-            return Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse {
-                    error: format!("Failed to create role: {}", e),
-                }),
-            ));
-        }
-    };
-
-    Ok((
-        StatusCode::CREATED,
-        Json(RoleResponse {
-            id: new_role.id,
-            name: new_role.name,
-        }),
-    ))
+#[axum::debug_handler(state = AppState)]
+pub async fn create_role_handler(
+    State(role_repo): State<Arc<RoleRepository>>,
+    Json(request): Json<CreateRoleRequest>,
+) -> Result<impl IntoResponse, AppError> {
+    let new_role = role_repo.create_role(&request.name).await?;
+    Ok((StatusCode::CREATED, Json(new_role)))
 }
 
 #[utoipa::path(
     get,
     path = "/api/admin/roles",
     responses(
-        (status = 200, description = "List of all roles", body = Vec<RoleResponse>),
-        (status = 500, description = "Internal server error", body = ErrorResponse)
+        (status = 200, description = "List of roles", body = Vec<Role>),
+        (status = 500, description = "Internal server error")
     ),
-    tag = "Roles"
+    security(
+        ("bearer_auth" = [])
+    ),
+    tag = "Role"
 )]
-pub async fn get_roles(
-    State(state): State<Arc<AppState>>,
-) -> Result<Json<Vec<RoleResponse>>, (StatusCode, Json<ErrorResponse>)> {
-    let roles = match sqlx::query_as!(
-        crate::models::domain::Role,
-        r#"
-        SELECT id, name
-        FROM roles
-        ORDER BY name
-        "#,
-    )
-    .fetch_all(&state.db)
-    .await
-    {
-        Ok(roles) => roles,
-        Err(_) => {
-            return Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse {
-                    error: "Failed to retrieve roles.".to_string(),
-                }),
-            ));
-        }
-    };
+#[axum::debug_handler(state = AppState)]
+pub async fn get_roles_handler(
+    State(role_repo): State<Arc<RoleRepository>>,
+) -> Result<impl IntoResponse, AppError> {
+    let roles = role_repo.get_all_roles().await?;
+    Ok((StatusCode::OK, Json(roles)))
+}
 
-    let role_responses = roles
-        .into_iter()
-        .map(|role| RoleResponse {
-            id: role.id,
-            name: role.name,
-        })
-        .collect();
-
-    Ok(Json(role_responses))
+#[utoipa::path(
+    delete,
+    path = "/api/admin/roles/{role_id}",
+    params(
+        ("role_id" = Uuid, Path, description = "Role id")
+    ),
+    responses(
+        (status = 204, description = "Role deleted successfully"),
+        (status = 404, description = "Role not found"),
+        (status = 500, description = "Internal server error")
+    ),
+    security(
+        ("bearer_auth" = [])
+    ),
+    tag = "Role"
+)]
+#[axum::debug_handler(state = AppState)]
+pub async fn delete_role_handler(
+    State(role_repo): State<Arc<RoleRepository>>,
+    Path(role_id): Path<Uuid>,
+) -> Result<impl IntoResponse, AppError> {
+    role_repo.delete_role(role_id).await?;
+    Ok(StatusCode::NO_CONTENT)
 }

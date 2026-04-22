@@ -68,6 +68,21 @@ pub struct UserResponse {
     pub role_id: Uuid,
 }
 
+/// Request body for the login endpoint.
+#[derive(Debug, serde::Deserialize, ToSchema)]
+pub struct LoginRequest {
+    #[schema(example = "test.user@example.com")]
+    pub email: String,
+    #[schema(example = "Str0ngP@ssw0rd!")]
+    pub password: String,
+}
+
+/// Response for a successful login.
+#[derive(Debug, serde::Serialize, ToSchema)]
+pub struct LoginResponse {
+    pub token: String,
+}
+
 /// Generic error response.
 #[derive(Debug, serde::Serialize, serde::Deserialize, utoipa::ToSchema)]
 pub struct ErrorResponse {
@@ -85,4 +100,17 @@ pub struct LogsQuery {
     pub action: Option<String>,
     pub from_date: Option<String>,
     pub to_date: Option<String>,
+}
+
+use super::domain::{Email, Role, User};
+
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct GenerateEmailRequest {
+    #[schema(example = "Write a follow-up email to a client who missed a meeting.")]
+    pub prompt: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, ToSchema)]
+pub struct GenerateEmailResponse {
+    pub email: Email,
 }
