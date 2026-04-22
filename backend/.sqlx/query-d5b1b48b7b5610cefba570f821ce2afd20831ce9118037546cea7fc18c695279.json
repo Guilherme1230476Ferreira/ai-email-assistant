@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO users (email, password_hash, role_id)\n        VALUES ($1, $2, $3)\n        RETURNING id, email, password_hash, role_id, created_at\n        ",
+  "query": "INSERT INTO users (email, password_hash, role_id) VALUES ($1, $2, $3) RETURNING *",
   "describe": {
     "columns": [
       {
@@ -20,13 +20,13 @@
       },
       {
         "ordinal": 3,
-        "name": "role_id",
-        "type_info": "Uuid"
+        "name": "created_at",
+        "type_info": "Timestamptz"
       },
       {
         "ordinal": 4,
-        "name": "created_at",
-        "type_info": "Timestamptz"
+        "name": "role_id",
+        "type_info": "Uuid"
       }
     ],
     "parameters": {
@@ -44,5 +44,5 @@
       false
     ]
   },
-  "hash": "b51d75e1c3743693f561c99bf3825c23b5120c9d4b580e245ee89635af9149d2"
+  "hash": "d5b1b48b7b5610cefba570f821ce2afd20831ce9118037546cea7fc18c695279"
 }

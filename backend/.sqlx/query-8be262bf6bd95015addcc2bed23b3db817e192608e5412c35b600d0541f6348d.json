@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO roles (name)\n        VALUES ($1)\n        RETURNING id, name\n        ",
+  "query": "SELECT * FROM roles WHERE name = $1",
   "describe": {
     "columns": [
       {
@@ -24,5 +24,5 @@
       false
     ]
   },
-  "hash": "144001957a9d22ac3c5d3f2d8a03057a930cf8406df3a9314427bba5bf60567c"
+  "hash": "8be262bf6bd95015addcc2bed23b3db817e192608e5412c35b600d0541f6348d"
 }

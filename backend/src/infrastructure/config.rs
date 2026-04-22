@@ -15,9 +15,13 @@ pub struct Config {
     pub database_url: String,
     pub jwt_secret: String,
     pub jwt_expiration_hours: i64,
+    pub encryption_key: String,
     pub llm_api_key: String,
     pub llm_provider_name: LlmProviderName,
     pub port: u16,
+    pub embedding_api_url: String,
+    pub embedding_api_key: String,
+    pub embedding_model: String,
 }
 
 impl Config {
@@ -44,6 +48,9 @@ impl Config {
             .and_then(|raw| raw.parse::<i64>().ok())
             .unwrap_or(24);
 
+        let encryption_key = env::var("ENCRYPTION_KEY")
+            .unwrap_or_else(|_| "00000000000000000000000000000000".to_string());
+
         // Backward compatible: prefer LLM_API_KEY, fallback to provider-specific env vars.
         let llm_api_key = env::var("LLM_API_KEY")
             .ok()
@@ -59,6 +66,17 @@ impl Config {
                     .filter(|value| !value.trim().is_empty())
             })
             .unwrap_or_default();
+            
+        let embedding_api_url = env::var("EMBEDDING_API_URL")
+            .unwrap_or_else(|_| "https://api.openai.com/v1".to_string());
+            
+        let embedding_api_key = env::var("EMBEDDING_API_KEY")
+            .or_else(|_| env::var("OPENAI_API_KEY"))
+            .unwrap_or_default();
+            
+        let embedding_model = env::var("EMBEDDING_MODEL")
+            .unwrap_or_else(|_| "text-embedding-3-small".to_string());
+
         let port = env::var("PORT")
             .ok()
             .and_then(|raw| raw.parse::<u16>().ok())
@@ -68,9 +86,13 @@ impl Config {
             database_url,
             jwt_secret,
             jwt_expiration_hours,
+            encryption_key,
             llm_api_key,
             llm_provider_name,
             port,
+            embedding_api_url,
+            embedding_api_key,
+            embedding_model,
         })
     }
 }

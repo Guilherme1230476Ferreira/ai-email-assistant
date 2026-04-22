@@ -1,0 +1,59 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT e.id, e.user_id, e.original_content, e.generated_response, e.created_at, e.updated_at\n            FROM emails e\n            JOIN email_embeddings ee ON e.id = ee.email_id\n            WHERE e.user_id = $1 AND ee.content_embedding IS NOT NULL\n            ORDER BY ee.content_embedding <=> $2\n            LIMIT $3\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "original_content",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "generated_response",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 5,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        {
+          "Custom": {
+            "name": "vector",
+            "kind": "Simple"
+          }
+        },
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "6205c21ab2d2586acf87b995cc717d1ff731dbb74239052a8778be44a38d28e2"
+}

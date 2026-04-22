@@ -21,16 +21,13 @@ pub struct User {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
-pub struct Settings {
-    pub id: Uuid,
-    pub user_id: Uuid,
-    pub llm_provider: String,
-    pub api_key: Option<String>,
-    pub max_tokens: i32,
-    pub temperature: f64,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow, utoipa::ToSchema)]
+pub struct AppSetting {
+    pub id: String,
+    pub llm_base_url: String,
+    pub llm_model: String,
+    pub llm_api_key_encrypted: Option<String>,
+    pub updated_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Clone, FromRow, Serialize, Deserialize, utoipa::ToSchema)]

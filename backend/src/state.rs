@@ -4,8 +4,9 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use crate::infrastructure::config::Config;
-use crate::repositories::{user_repo::UserRepository, role_repo::RoleRepository, email_repo::EmailRepository};
-use crate::services::llm_service::{LlmService, LlmServiceImpl};
+use crate::infrastructure::crypto::CryptoService;
+use crate::repositories::{user_repo::UserRepository, role_repo::RoleRepository, email_repo::EmailRepository, settings_repo::SettingsRepository};
+use crate::services::llm_service::{LlmService, UnifiedLlmService};
 use axum::extract::FromRef;
 
 #[derive(Debug, Clone, Default)]
@@ -18,6 +19,8 @@ pub struct AppState {
     pub user_repo: Arc<UserRepository>,
     pub role_repo: Arc<RoleRepository>,
     pub email_repo: Arc<EmailRepository>,
+    pub settings_repo: Arc<SettingsRepository>,
+    pub crypto_service: Arc<CryptoService>,
     pub llm_service: Arc<dyn LlmService + Send + Sync>,
     pub config: Arc<Config>,
 }
@@ -37,6 +40,18 @@ impl FromRef<AppState> for Arc<RoleRepository> {
 impl FromRef<AppState> for Arc<EmailRepository> {
     fn from_ref(state: &AppState) -> Self {
         state.email_repo.clone()
+    }
+}
+
+impl FromRef<AppState> for Arc<SettingsRepository> {
+    fn from_ref(state: &AppState) -> Self {
+        state.settings_repo.clone()
+    }
+}
+
+impl FromRef<AppState> for Arc<CryptoService> {
+    fn from_ref(state: &AppState) -> Self {
+        state.crypto_service.clone()
     }
 }
 
@@ -65,13 +80,18 @@ impl AppState {
         let role_repo = Arc::new(RoleRepository::new(pool.clone()));
         let email_repo = Arc::new(EmailRepository::new(pool.clone()));
 
+        let crypto_service = Arc::new(CryptoService::new(Arc::new(config.clone()))?);
+        let settings_repo = Arc::new(SettingsRepository::new(pool.clone(), (*crypto_service).clone()));
+
         let llm_service: Arc<dyn LlmService + Send + Sync> =
-            Arc::new(LlmServiceImpl::new(config.clone()));
+            Arc::new(UnifiedLlmService::new());
 
         let app_state = AppState {
             user_repo,
             role_repo,
             email_repo,
+            settings_repo,
+            crypto_service,
             llm_service,
             config: Arc::new(config),
         };

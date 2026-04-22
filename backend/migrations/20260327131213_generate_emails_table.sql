@@ -17,8 +17,8 @@ CREATE TABLE emails (
 CREATE TABLE email_embeddings (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     email_id UUID NOT NULL REFERENCES emails(id) ON DELETE CASCADE,
-    content_embedding VECTOR(768), -- Assuming a 768-dimension vector from the LLM
-    response_embedding VECTOR(768),
+    content_embedding VECTOR, 
+    response_embedding VECTOR,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 

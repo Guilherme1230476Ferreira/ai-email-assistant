@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        UPDATE users\n        SET role_id = $1\n        WHERE id = $2\n        RETURNING id, email, password_hash, role_id, created_at\n        ",
+  "query": "SELECT * FROM users ORDER BY created_at DESC",
   "describe": {
     "columns": [
       {
@@ -20,20 +20,17 @@
       },
       {
         "ordinal": 3,
-        "name": "role_id",
-        "type_info": "Uuid"
+        "name": "created_at",
+        "type_info": "Timestamptz"
       },
       {
         "ordinal": 4,
-        "name": "created_at",
-        "type_info": "Timestamptz"
+        "name": "role_id",
+        "type_info": "Uuid"
       }
     ],
     "parameters": {
-      "Left": [
-        "Uuid",
-        "Uuid"
-      ]
+      "Left": []
     },
     "nullable": [
       false,
@@ -43,5 +40,5 @@
       false
     ]
   },
-  "hash": "6d5285c44c25caa2075549fee5afd87560f0495b67cc2781f3a9984abad6368d"
+  "hash": "79d6ec6e0c3275438cf735d6637075398cb2e188b4d55df37eff9d7cabc4dd5f"
 }

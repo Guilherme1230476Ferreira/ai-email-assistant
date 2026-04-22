@@ -6,7 +6,7 @@ use crate::{
     app_error::AppError,
     handlers::{
         admin_handler, auth_handler, email_handler,
-        role_handler,
+        role_handler, settings_handler,
     },
     models::{
         domain::{Email, Role, User},
@@ -14,6 +14,7 @@ use crate::{
             CreateRoleRequest, CreateUserRequest, GenerateEmailRequest, LoginRequest,
             LoginResponse, UpdateUserRoleRequest,
         },
+        settings_dto::{SettingsResponse, UpdateSettingsRequest, VerifySettingsRequest},
     },
     state::AppState,
 };
@@ -31,6 +32,10 @@ use std::sync::Arc;
         role_handler::get_roles_handler,
         role_handler::delete_role_handler,
         email_handler::generate_email_handler,
+        email_handler::get_emails_handler,
+        settings_handler::get_settings_handler,
+        settings_handler::update_settings_handler,
+        settings_handler::verify_settings_handler,
         health,
     ),
     components(schemas(
@@ -40,6 +45,9 @@ use std::sync::Arc;
         LoginRequest,
         LoginResponse,
         UpdateUserRoleRequest,
+        SettingsResponse,
+        UpdateSettingsRequest,
+        VerifySettingsRequest,
         AppError,
         Role,
         User,
@@ -50,7 +58,8 @@ use std::sync::Arc;
         (name = "Auth", description = "Authentication endpoints"),
         (name = "Email", description = "Email generation endpoints"),
         (name = "Health", description = "Health check endpoint"),
-        (name = "Role", description = "Role management endpoints")
+        (name = "Role", description = "Role management endpoints"),
+        (name = "Admin Settings", description = "LLM Settings endpoints")
     ),
     modifiers(&SecurityAddon)
 )]
@@ -106,6 +115,19 @@ pub async fn create_router(app_state: AppState) -> Router {
         .route(
             "/api/emails/generate",
             axum::routing::post(email_handler::generate_email_handler),
+        )
+        .route(
+            "/api/emails",
+            axum::routing::get(email_handler::get_emails_handler),
+        )
+        .route(
+            "/api/admin/settings",
+            axum::routing::get(settings_handler::get_settings_handler)
+                .put(settings_handler::update_settings_handler),
+        )
+        .route(
+            "/api/admin/settings/verify",
+            axum::routing::post(settings_handler::verify_settings_handler),
         )
         .with_state(app_state)
 }

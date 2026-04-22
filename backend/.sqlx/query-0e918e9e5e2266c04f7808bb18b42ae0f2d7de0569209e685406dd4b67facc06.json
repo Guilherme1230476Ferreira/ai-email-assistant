@@ -1,0 +1,48 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE settings \n                 SET llm_base_url = $1, llm_model = $2, llm_api_key_encrypted = $3, updated_at = CURRENT_TIMESTAMP\n                 WHERE id = 'singleton'\n                 RETURNING id, llm_base_url, llm_model, llm_api_key_encrypted, updated_at",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 1,
+        "name": "llm_base_url",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 2,
+        "name": "llm_model",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 3,
+        "name": "llm_api_key_encrypted",
+        "type_info": "Varchar"
+      },
+      {
+        "ordinal": 4,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Varchar",
+        "Varchar"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "0e918e9e5e2266c04f7808bb18b42ae0f2d7de0569209e685406dd4b67facc06"
+}
