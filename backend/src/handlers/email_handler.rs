@@ -1,23 +1,15 @@
 use std::sync::Arc;
 
-use axum::{
-    extract::State,
-    http::StatusCode,
-    response::IntoResponse,
-    Json,
-};
+use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
 
 use crate::{
     app_error::AppError,
+    infrastructure::config::Config,
     middleware::auth::AuthUser,
-    models::{
-        domain::Email,
-        dto::GenerateEmailRequest,
-    },
+    models::{domain::Email, dto::GenerateEmailRequest},
     repositories::{email_repo::EmailRepository, settings_repo::SettingsRepository},
     services::llm_service::LlmService,
     state::AppState,
-    infrastructure::config::Config,
 };
 
 #[utoipa::path(
@@ -43,23 +35,32 @@ pub async fn generate_email_handler(
     auth_user: AuthUser,
     Json(request): Json<GenerateEmailRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-
     // 1. Chat/Generation Configurations from DB
     let settings = settings_repo.get_settings().await?;
-    let api_key = settings_repo.get_decrypted_api_key().await?
+    let api_key = settings_repo
+        .get_decrypted_api_key()
+        .await?
         .ok_or_else(|| AppError::new(StatusCode::BAD_REQUEST, "LLM API Key is not configured."))?;
 
     // 2. Fetch Embeddings and Context for RAG (Uses .env config to separate permanent Emdedding LLM provider from Chat LLM Provider)
     let mut context_str = String::new();
     let embedding_result = llm_service
-        .generate_embedding(&request.prompt, &config.embedding_api_url, &config.embedding_model, &config.embedding_api_key)
+        .generate_embedding(
+            &request.prompt,
+            &config.embedding_api_url,
+            &config.embedding_model,
+            &config.embedding_api_key,
+        )
         .await;
 
     let mut prompt_embedding = None;
     match embedding_result {
         Ok(vec) => {
             // Retrieve up to 3 similar past emails mapped to the user
-            if let Ok(similar_emails) = email_repo.find_similar_emails(auth_user.0.id, &vec, 3).await {
+            if let Ok(similar_emails) = email_repo
+                .find_similar_emails(auth_user.0.id, &vec, 3)
+                .await
+            {
                 for past_email in similar_emails {
                     if let Some(resp) = past_email.generated_response {
                         context_str.push_str(&format!(
@@ -74,7 +75,10 @@ pub async fn generate_email_handler(
         Err(e) => {
             // Non-fatal error; if embeddings are unsupported by their chosen model Endpoint (e.g. Groq wrapper issue),
             // we will gracefully fail the RAG context injection and just generate normally.
-            eprintln!("Warning: Failed to fetch embeddings for RAG Context. Proceeding without context. Error: {:?}", e);
+            eprintln!(
+                "Warning: Failed to fetch embeddings for RAG Context. Proceeding without context. Error: {:?}",
+                e
+            );
         }
     }
 
@@ -89,22 +93,39 @@ pub async fn generate_email_handler(
     };
 
     let generated_response = llm_service
-        .generate_reply(&email_to_generate, &context_str, &settings.llm_base_url, &settings.llm_model, &api_key)
+        .generate_reply(
+            &email_to_generate,
+            &context_str,
+            &settings.llm_base_url,
+            &settings.llm_model,
+            &api_key,
+        )
         .await
         .map_err(|e| {
             eprintln!("LLM service error: {:?}", e);
-            AppError::new(StatusCode::INTERNAL_SERVER_ERROR, "Failed to generate email response".to_string())
+            AppError::new(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to generate email response".to_string(),
+            )
         })?;
 
     // 4. Fetch Embedding for the LLM's Generated Response
     let response_embedding_result = llm_service
-        .generate_embedding(&generated_response, &config.embedding_api_url, &config.embedding_model, &config.embedding_api_key)
+        .generate_embedding(
+            &generated_response,
+            &config.embedding_api_url,
+            &config.embedding_model,
+            &config.embedding_api_key,
+        )
         .await;
 
     let response_embedding = match response_embedding_result {
         Ok(vec) => Some(vec),
         Err(e) => {
-            eprintln!("Warning: Failed to fetch embedding for generated response: {:?}", e);
+            eprintln!(
+                "Warning: Failed to fetch embedding for generated response: {:?}",
+                e
+            );
             None
         }
     };
@@ -120,7 +141,10 @@ pub async fn generate_email_handler(
         .await
         .map_err(|e| {
             eprintln!("Email repo error: {:?}", e);
-            AppError::new(StatusCode::INTERNAL_SERVER_ERROR, "Failed to save generated email".to_string())
+            AppError::new(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to save generated email".to_string(),
+            )
         })?;
 
     Ok((StatusCode::OK, Json(email)))
@@ -149,7 +173,10 @@ pub async fn get_emails_handler(
         .await
         .map_err(|e| {
             eprintln!("Email repo error: {:?}", e);
-            AppError::new(StatusCode::INTERNAL_SERVER_ERROR, "Failed to fetch emails".to_string())
+            AppError::new(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to fetch emails".to_string(),
+            )
         })?;
 
     Ok((StatusCode::OK, Json(emails)))

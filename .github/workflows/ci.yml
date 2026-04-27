@@ -1,15 +1,17 @@
-name: Backend CI
+name: CI
 
 on:
   push:
     branches: [main]
     paths:
       - backend/**
+      - backoffice/**
       - .github/workflows/ci.yml
   pull_request:
     branches: [main]
     paths:
       - backend/**
+      - backoffice/**
       - .github/workflows/ci.yml
 
 jobs:
@@ -54,3 +56,29 @@ jobs:
 
      ## - name: Check formatting
        ## run: cargo fmt -- --check
+
+  backoffice-build:
+    name: Build Backoffice
+    runs-on: self-hosted
+    defaults:
+      run:
+        working-directory: backoffice
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'latest'
+          cache: 'npm'
+          cache-dependency-path: 'backoffice/package-lock.json'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run SvelteKit check
+        run: npm run check
+
+      - name: Build backoffice
+        run: npm run build

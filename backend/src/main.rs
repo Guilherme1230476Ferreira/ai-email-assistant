@@ -1,6 +1,6 @@
 pub mod app_error;
-pub mod infrastructure;
 pub mod handlers;
+pub mod infrastructure;
 pub mod middleware;
 pub mod models;
 pub mod repositories;
@@ -22,12 +22,14 @@ async fn main() {
     let config = Config::from_env().expect("failed to load configuration");
     let port = config.port;
 
-        let app_state = AppState::new(config).await.expect("failed to create app state");
+    let app_state = AppState::new(config)
+        .await
+        .expect("failed to create app state");
     let app = create_router(app_state.clone()).await;
 
     let addr = format!("0.0.0.0:{}", port);
     tracing::info!("Server running at http://localhost:{}", port);
-        tracing::info!(
+    tracing::info!(
         "Swagger UI at http://localhost:{}/swagger-ui",
         &app_state.config.port
     );

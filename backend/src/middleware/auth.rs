@@ -1,18 +1,17 @@
 use std::sync::Arc;
 
 use axum::{
-    async_trait,
+    Json, async_trait,
     extract::FromRequestParts,
-    http::{request::Parts, StatusCode},
+    http::{StatusCode, request::Parts},
     response::{IntoResponse, Response},
-    Json,
 };
 use axum_extra::{
-    headers::{authorization::Bearer, Authorization},
     TypedHeader,
+    headers::{Authorization, authorization::Bearer},
 };
 use chrono::{Duration, Utc};
-use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
+use jsonwebtoken::{DecodingKey, EncodingKey, Header, Validation, decode, encode};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -65,7 +64,10 @@ impl FromRequestParts<AppState> for AuthUser {
             TypedHeader::<Authorization<Bearer>>::from_request_parts(parts, state)
                 .await
                 .map_err(|_| {
-                    AppError::new(StatusCode::UNAUTHORIZED, "Missing or invalid token".to_string())
+                    AppError::new(
+                        StatusCode::UNAUTHORIZED,
+                        "Missing or invalid token".to_string(),
+                    )
                 })?;
 
         // Decode the user claims
@@ -98,7 +100,10 @@ impl From<AuthError> for AppError {
     fn from(err: AuthError) -> Self {
         let (status, message) = match err {
             AuthError::InvalidToken => (StatusCode::UNAUTHORIZED, "Invalid or missing token"),
-            AuthError::InternalError => (StatusCode::INTERNAL_SERVER_ERROR, "An internal error occurred"),
+            AuthError::InternalError => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "An internal error occurred",
+            ),
         };
         AppError::new(status, message)
     }

@@ -37,7 +37,7 @@
   }
 </script>
 
-{#if page.url.pathname === '/login'}
+{#if page.url.pathname.startsWith('/login') || page.url.pathname.startsWith('/signup')}
   <div class="min-h-screen bg-black text-white">
     {@render children()}
   </div>

@@ -1,10 +1,10 @@
-use aes_gcm::{
-    aead::{Aead, KeyInit, OsRng},
-    Aes256Gcm, Nonce,
-};
 use aes_gcm::aead::AeadCore;
-use anyhow::{anyhow, Result};
-use base64::{engine::general_purpose, Engine as _};
+use aes_gcm::{
+    Aes256Gcm, Nonce,
+    aead::{Aead, KeyInit, OsRng},
+};
+use anyhow::{Result, anyhow};
+use base64::{Engine as _, engine::general_purpose};
 use std::sync::Arc;
 
 use crate::infrastructure::config::Config;
@@ -27,7 +27,7 @@ impl CryptoService {
     pub fn encrypt(&self, plaintext: &str) -> Result<String> {
         let cipher = Aes256Gcm::new(&self.key.into());
         let nonce = Aes256Gcm::generate_nonce(&mut OsRng); // 96-bits; unique per message
-        
+
         let ciphertext = cipher
             .encrypt(&nonce, plaintext.as_bytes())
             .map_err(|e| anyhow!("Encryption error: {:?}", e))?;
@@ -35,7 +35,7 @@ impl CryptoService {
         // Combine nonce and ciphertext for storage, separated by a colon
         let nonce_b64 = general_purpose::STANDARD.encode(nonce.as_slice());
         let cipher_b64 = general_purpose::STANDARD.encode(ciphertext);
-        
+
         Ok(format!("{}:{}", nonce_b64, cipher_b64))
     }
 

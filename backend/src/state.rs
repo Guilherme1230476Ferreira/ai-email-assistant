@@ -5,7 +5,10 @@ use tokio::sync::RwLock;
 
 use crate::infrastructure::config::Config;
 use crate::infrastructure::crypto::CryptoService;
-use crate::repositories::{user_repo::UserRepository, role_repo::RoleRepository, email_repo::EmailRepository, settings_repo::SettingsRepository};
+use crate::repositories::{
+    email_repo::EmailRepository, role_repo::RoleRepository, settings_repo::SettingsRepository,
+    user_repo::UserRepository,
+};
 use crate::services::llm_service::{LlmService, UnifiedLlmService};
 use axum::extract::FromRef;
 
@@ -81,10 +84,12 @@ impl AppState {
         let email_repo = Arc::new(EmailRepository::new(pool.clone()));
 
         let crypto_service = Arc::new(CryptoService::new(Arc::new(config.clone()))?);
-        let settings_repo = Arc::new(SettingsRepository::new(pool.clone(), (*crypto_service).clone()));
+        let settings_repo = Arc::new(SettingsRepository::new(
+            pool.clone(),
+            (*crypto_service).clone(),
+        ));
 
-        let llm_service: Arc<dyn LlmService + Send + Sync> =
-            Arc::new(UnifiedLlmService::new());
+        let llm_service: Arc<dyn LlmService + Send + Sync> = Arc::new(UnifiedLlmService::new());
 
         let app_state = AppState {
             user_repo,

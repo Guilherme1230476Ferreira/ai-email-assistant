@@ -1,11 +1,6 @@
 use std::sync::Arc;
 
-use axum::{
-    extract::State,
-    http::StatusCode,
-    response::IntoResponse,
-    Json,
-};
+use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
 use reqwest::Client;
 use serde_json::json;
 
@@ -109,17 +104,19 @@ pub async fn verify_settings_handler(
     State(settings_repo): State<Arc<SettingsRepository>>,
     Json(request): Json<VerifySettingsRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    
     // Resolve what to test
     let settings = settings_repo.get_settings().await?;
     let base_url = request.llm_base_url.unwrap_or(settings.llm_base_url);
     let model = request.llm_model.unwrap_or(settings.llm_model);
-    
+
     let mut api_key = request.llm_api_key;
     if api_key.is_none() || api_key.as_deref() == Some("sk-...****") {
         let dec_key = settings_repo.get_decrypted_api_key().await?;
         if dec_key.is_none() {
-            return Err(AppError::new(StatusCode::BAD_REQUEST, "No API key to verify"));
+            return Err(AppError::new(
+                StatusCode::BAD_REQUEST,
+                "No API key to verify",
+            ));
         }
         api_key = dec_key;
     }
@@ -140,7 +137,10 @@ pub async fn verify_settings_handler(
 
     let res = client
         .post(&url)
-        .header("Authorization", format!("Bearer {}", api_key.unwrap_or_default()))
+        .header(
+            "Authorization",
+            format!("Bearer {}", api_key.unwrap_or_default()),
+        )
         .json(&payload)
         .send()
         .await;
@@ -148,13 +148,21 @@ pub async fn verify_settings_handler(
     match res {
         Ok(response) => {
             if response.status().is_success() {
-                Ok((StatusCode::OK, Json(json!({"status": "Success", "message": "API key and connection validated successfully"}))))
+                Ok((
+                    StatusCode::OK,
+                    Json(
+                        json!({"status": "Success", "message": "API key and connection validated successfully"}),
+                    ),
+                ))
             } else {
                 let status = response.status();
                 let body = response.text().await.unwrap_or_default();
                 Err(AppError::new(
                     StatusCode::BAD_REQUEST,
-                    format!("API verification failed with status: {}. Body: {}", status, body),
+                    format!(
+                        "API verification failed with status: {}. Body: {}",
+                        status, body
+                    ),
                 ))
             }
         }

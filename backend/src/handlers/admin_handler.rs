@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
 use axum::{
+    Json,
     extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
-    Json,
 };
 use uuid::Uuid;
 
@@ -98,7 +98,9 @@ pub async fn update_user_role_handler(
     Json(request): Json<UpdateUserRoleRequest>,
 ) -> Result<impl IntoResponse, AppError> {
     let role = role_repo.get_role_by_id(request.role_id).await?;
-    let updated_user = user_repo.update_user_role(user_id, role.unwrap().id).await?;
+    let updated_user = user_repo
+        .update_user_role(user_id, role.unwrap().id)
+        .await?;
     Ok((StatusCode::OK, Json(updated_user)))
 }
 

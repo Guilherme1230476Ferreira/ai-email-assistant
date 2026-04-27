@@ -1,13 +1,10 @@
-use axum::{routing::get, Router};
+use axum::{Router, routing::get};
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
 use crate::{
     app_error::AppError,
-    handlers::{
-        admin_handler, auth_handler, email_handler,
-        role_handler, settings_handler,
-    },
+    handlers::{admin_handler, auth_handler, email_handler, role_handler, settings_handler},
     models::{
         domain::{Email, Role, User},
         dto::{
@@ -89,6 +86,15 @@ pub async fn create_router(app_state: AppState) -> Router {
         .route(
             "/api/auth/login",
             axum::routing::post(auth_handler::login_handler),
+        )
+        .route(
+            "/api/auth/register",
+            axum::routing::post(auth_handler::register_handler),
+        )
+        .route("/api/auth/google", get(auth_handler::google_auth_handler))
+        .route(
+            "/api/auth/google/callback",
+            get(auth_handler::google_callback_handler),
         )
         .route(
             "/api/admin/users",

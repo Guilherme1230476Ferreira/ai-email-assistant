@@ -2,22 +2,19 @@ use async_trait::async_trait;
 use reqwest::Client;
 use serde_json::json;
 
-use crate::{
-    app_error::AppError,
-    models::domain::Email,
-};
+use crate::{app_error::AppError, models::domain::Email};
 use axum::http::StatusCode;
 use pgvector::Vector;
 
 #[async_trait]
 pub trait LlmService: Send + Sync {
     async fn generate_reply(
-        &self, 
-        email: &Email, 
+        &self,
+        email: &Email,
         context: &str,
-        base_url: &str, 
-        model: &str, 
-        api_key: &str
+        base_url: &str,
+        model: &str,
+        api_key: &str,
     ) -> Result<String, AppError>;
 
     async fn generate_embedding(
@@ -25,7 +22,7 @@ pub trait LlmService: Send + Sync {
         text: &str,
         base_url: &str,
         model: &str,
-        api_key: &str
+        api_key: &str,
     ) -> Result<Vector, AppError>;
 }
 
@@ -44,14 +41,13 @@ impl UnifiedLlmService {
 #[async_trait]
 impl LlmService for UnifiedLlmService {
     async fn generate_reply(
-        &self, 
-        email: &Email, 
+        &self,
+        email: &Email,
         context: &str,
-        base_url: &str, 
-        model: &str, 
-        api_key: &str
+        base_url: &str,
+        model: &str,
+        api_key: &str,
     ) -> Result<String, AppError> {
-
         let url = format!("{}/chat/completions", base_url.trim_end_matches('/'));
 
         let system_prompt = if context.is_empty() {
@@ -80,7 +76,8 @@ impl LlmService for UnifiedLlmService {
             "max_tokens": 1000
         });
 
-        let res = self.client
+        let res = self
+            .client
             .post(&url)
             .header("Authorization", format!("Bearer {}", api_key))
             .json(&payload)
@@ -91,7 +88,10 @@ impl LlmService for UnifiedLlmService {
             Ok(response) => {
                 if !response.status().is_success() {
                     let status = response.status();
-                    let body = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+                    let body = response
+                        .text()
+                        .await
+                        .unwrap_or_else(|_| "Unknown error".to_string());
                     return Err(AppError::new(
                         StatusCode::BAD_GATEWAY,
                         format!("LLM API returned an error ({}): {}", status, body),
@@ -126,16 +126,17 @@ impl LlmService for UnifiedLlmService {
         text: &str,
         base_url: &str,
         model: &str,
-        api_key: &str
+        api_key: &str,
     ) -> Result<Vector, AppError> {
         let url = format!("{}/embeddings", base_url.trim_end_matches('/'));
 
         let payload = json!({
-            "model": model, 
+            "model": model,
             "input": text
         });
 
-        let res = self.client
+        let res = self
+            .client
             .post(&url)
             .header("Authorization", format!("Bearer {}", api_key))
             .json(&payload)
@@ -146,7 +147,10 @@ impl LlmService for UnifiedLlmService {
             Ok(response) => {
                 if !response.status().is_success() {
                     let status = response.status();
-                    let body = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+                    let body = response
+                        .text()
+                        .await
+                        .unwrap_or_else(|_| "Unknown error".to_string());
                     return Err(AppError::new(
                         StatusCode::BAD_GATEWAY,
                         format!("Embedding API returned an error ({}): {}", status, body),

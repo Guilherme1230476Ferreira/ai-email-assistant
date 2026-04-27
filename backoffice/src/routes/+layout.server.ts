@@ -23,7 +23,7 @@ export const load: LayoutServerLoad = async ({ cookies, fetch, url }) => {
 	}
 
 	try {
-		const headers = { 'Authorization': `Bearer ${token}` };
+		const headers: Record<string, string> = { 'Authorization': `Bearer ${token}` };
 		// Attempt to grab all users to find 'me'
 		const usersRes = await fetch('/api/admin/users', { headers });
 		let userProfile = { email: "User", initials: "U", role: "user" };

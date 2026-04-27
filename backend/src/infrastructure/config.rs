@@ -22,6 +22,8 @@ pub struct Config {
     pub embedding_api_url: String,
     pub embedding_api_key: String,
     pub embedding_model: String,
+    pub google_client_id: Option<String>,
+    pub google_client_secret: Option<String>,
 }
 
 impl Config {
@@ -66,21 +68,24 @@ impl Config {
                     .filter(|value| !value.trim().is_empty())
             })
             .unwrap_or_default();
-            
+
         let embedding_api_url = env::var("EMBEDDING_API_URL")
             .unwrap_or_else(|_| "https://api.openai.com/v1".to_string());
-            
+
         let embedding_api_key = env::var("EMBEDDING_API_KEY")
             .or_else(|_| env::var("OPENAI_API_KEY"))
             .unwrap_or_default();
-            
-        let embedding_model = env::var("EMBEDDING_MODEL")
-            .unwrap_or_else(|_| "text-embedding-3-small".to_string());
+
+        let embedding_model =
+            env::var("EMBEDDING_MODEL").unwrap_or_else(|_| "text-embedding-3-small".to_string());
 
         let port = env::var("PORT")
             .ok()
             .and_then(|raw| raw.parse::<u16>().ok())
             .unwrap_or(3000);
+
+        let google_client_id = env::var("GOOGLE_CLIENT_ID").ok();
+        let google_client_secret = env::var("GOOGLE_CLIENT_SECRET").ok();
 
         Ok(Self {
             database_url,
@@ -90,6 +95,8 @@ impl Config {
             llm_api_key,
             llm_provider_name,
             port,
+            google_client_id,
+            google_client_secret,
             embedding_api_url,
             embedding_api_key,
             embedding_model,

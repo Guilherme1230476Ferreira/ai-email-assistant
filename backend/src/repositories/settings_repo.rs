@@ -3,11 +3,7 @@ use std::sync::Arc;
 use axum::http::StatusCode;
 use sqlx::PgPool;
 
-use crate::{
-    infrastructure::crypto::CryptoService,
-    models::domain::AppSetting,
-    AppError,
-};
+use crate::{AppError, infrastructure::crypto::CryptoService, models::domain::AppSetting};
 
 #[derive(Clone)]
 pub struct SettingsRepository {
@@ -48,13 +44,17 @@ impl SettingsRepository {
         llm_model: &str,
         llm_api_key: Option<&str>,
     ) -> Result<AppSetting, AppError> {
-        
         let encrypted_key = if let Some(key) = llm_api_key {
             // Do not update the key if the frontend submitted the placeholder
             if key.starts_with("sk-...") {
-                None 
+                None
             } else {
-                Some(self.crypto.encrypt(key).map_err(|_| AppError::new(StatusCode::INTERNAL_SERVER_ERROR, "Failed to encrypt API key"))?)
+                Some(self.crypto.encrypt(key).map_err(|_| {
+                    AppError::new(
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "Failed to encrypt API key",
+                    )
+                })?)
             }
         } else {
             None
@@ -81,8 +81,8 @@ impl SettingsRepository {
                  SET llm_base_url = $1, llm_model = $2, updated_at = CURRENT_TIMESTAMP
                  WHERE id = 'singleton'
                  RETURNING id, llm_base_url, llm_model, llm_api_key_encrypted, updated_at",
-                 llm_base_url,
-                 llm_model,
+                llm_base_url,
+                llm_model,
             )
             .fetch_one(&*self.pool)
             .await?
@@ -94,8 +94,12 @@ impl SettingsRepository {
     pub async fn get_decrypted_api_key(&self) -> Result<Option<String>, AppError> {
         let setting = self.get_settings().await?;
         if let Some(enc_key) = setting.llm_api_key_encrypted {
-            let dec_key = self.crypto.decrypt(&enc_key)
-                .map_err(|_| AppError::new(StatusCode::INTERNAL_SERVER_ERROR, "Failed to decrypt API key"))?;
+            let dec_key = self.crypto.decrypt(&enc_key).map_err(|_| {
+                AppError::new(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Failed to decrypt API key",
+                )
+            })?;
             Ok(Some(dec_key))
         } else {
             Ok(None)

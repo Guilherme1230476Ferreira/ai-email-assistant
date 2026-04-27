@@ -1,10 +1,10 @@
 /// Database entity structs — mapped from table rows via sqlx::FromRow.
 /// Real fields will be added when implementing Sprint 3.
 use chrono::{DateTime, Utc};
+use pgvector::Vector;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use uuid::Uuid;
-use pgvector::Vector;
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow, utoipa::ToSchema)]
 pub struct Role {

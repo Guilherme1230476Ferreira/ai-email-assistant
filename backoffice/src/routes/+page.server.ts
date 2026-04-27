@@ -3,7 +3,7 @@ import type { PageServerLoad } from './$types';
 export const load: PageServerLoad = async ({ fetch, cookies }) => {
 	try {
 		const token = cookies.get('token');
-		const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+		const headers: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {};
 
 		// Fetch data from the Rust endpoints via the Vite proxy
 		const [emailsRes, usersRes, rolesRes, settingsRes] = await Promise.all([

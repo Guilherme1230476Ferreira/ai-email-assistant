@@ -6,8 +6,8 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::{
-    models::{domain::User, dto::CreateUserRequest},
     AppError,
+    models::{domain::User, dto::CreateUserRequest},
 };
 
 #[derive(Clone)]
@@ -21,13 +21,19 @@ impl UserRepository {
     }
 
     pub async fn create_user(&self, payload: &CreateUserRequest) -> Result<User, AppError> {
-        let hashed_password =
-            hash(&payload.password, 12).map_err(|_| AppError::new(StatusCode::INTERNAL_SERVER_ERROR, "Failed to hash password"))?;
+        let hashed_password = hash(&payload.password, 12).map_err(|_| {
+            AppError::new(StatusCode::INTERNAL_SERVER_ERROR, "Failed to hash password")
+        })?;
 
         let role = sqlx::query!("SELECT id FROM roles WHERE name = 'user'")
             .fetch_optional(&*self.pool)
             .await?
-            .ok_or_else(|| AppError::new(StatusCode::INTERNAL_SERVER_ERROR, "Default 'user' role not found"))?;
+            .ok_or_else(|| {
+                AppError::new(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Default 'user' role not found",
+                )
+            })?;
 
         let user = sqlx::query_as!(
             User,
@@ -41,7 +47,10 @@ impl UserRepository {
         .map_err(|e| {
             if let sqlx::Error::Database(db_err) = &e {
                 if db_err.is_unique_violation() {
-                    return AppError::new(StatusCode::CONFLICT, "User with this email already exists");
+                    return AppError::new(
+                        StatusCode::CONFLICT,
+                        "User with this email already exists",
+                    );
                 }
             }
             e.into()

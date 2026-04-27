@@ -104,4 +104,3 @@ impl EmailRepository {
         Ok(emails)
     }
 }
-
