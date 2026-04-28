@@ -4,6 +4,14 @@ use serde::{Deserialize, Serialize};
 use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 
+#[derive(Debug, Serialize, ToSchema)]
+pub struct TelemetryData {
+    pub context_retrieval_rate: f64,
+    pub avg_similarity_score: f64,
+    pub tokens_saved: i64,
+    pub knowledge_matches: i64,
+}
+
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct GenerateReplyRequest {
     pub email_id: String,

@@ -51,12 +51,12 @@ impl LlmService for UnifiedLlmService {
         let url = format!("{}/chat/completions", base_url.trim_end_matches('/'));
 
         let system_prompt = if context.is_empty() {
-            "You are a professional and helpful AI email assistant. Generate a polite, concise, and appropriate reply to the following user email. Return only the direct text of the response.".to_string()
+            "You are a professional and helpful AI email assistant. Draft a polite, concise, and appropriate reply to the following received email from a client/colleague. Return only the direct text of the response you draft.".to_string()
         } else {
             format!(
-                "You are an AI email assistant. You learn from past user emails to mimic their tone. \
-                \n\nHere are past examples of the user's style:\n{}\n\n\
-                Use the style defined above to generate a polite and concise reply to the following new user email. Return only the response text.",
+                "You are an AI email assistant. You learn from the user's past email replies to mimic their tone and utilize their knowledge. \
+                \n\nHere is how the user previously replied to similar emails:\n{}\n\n\
+                Use the style and facts defined above to generate a polite and concise drafted reply to the following new incoming email. Return only the response text.",
                 context
             )
         };

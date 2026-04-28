@@ -6,7 +6,7 @@ use crate::{
     app_error::AppError,
     infrastructure::config::Config,
     middleware::auth::AuthUser,
-    models::{domain::Email, dto::GenerateEmailRequest},
+    models::{domain::Email, dto::GenerateEmailRequest, dto::TelemetryData},
     repositories::{email_repo::EmailRepository, settings_repo::SettingsRepository},
     services::llm_service::LlmService,
     state::AppState,
@@ -64,7 +64,7 @@ pub async fn generate_email_handler(
                 for past_email in similar_emails {
                     if let Some(resp) = past_email.generated_response {
                         context_str.push_str(&format!(
-                            "--- Past User Prompt: {}\n--- Past User Approved Response: {}\n\n",
+                            "--- Past Received Email: {}\n--- How You Replied: {}\n\n",
                             past_email.original_content, resp
                         ));
                     }
@@ -148,6 +148,38 @@ pub async fn generate_email_handler(
         })?;
 
     Ok((StatusCode::OK, Json(email)))
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/telemetry",
+    responses(
+        (status = 200, description = "RAG execution telemetry", body = TelemetryData),
+        (status = 401, description = "Unauthorized"),
+        (status = 500, description = "Internal Server Error")
+    ),
+    security(
+        ("bearer_auth" = [])
+    ),
+    tag = "Email"
+)]
+#[axum::debug_handler(state = AppState)]
+pub async fn get_telemetry_handler(
+    State(email_repo): State<Arc<EmailRepository>>,
+    auth_user: AuthUser,
+) -> Result<impl IntoResponse, AppError> {
+    let telemetry = email_repo
+        .get_telemetry_for_user(auth_user.0.id)
+        .await
+        .map_err(|e| {
+            eprintln!("Telemetry error: {:?}", e);
+            AppError::new(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to compute telemetry".to_string(),
+            )
+        })?;
+
+    Ok((StatusCode::OK, Json(telemetry)))
 }
 
 #[utoipa::path(

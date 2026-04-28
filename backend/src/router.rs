@@ -30,6 +30,7 @@ use std::sync::Arc;
         role_handler::delete_role_handler,
         email_handler::generate_email_handler,
         email_handler::get_emails_handler,
+        email_handler::get_telemetry_handler,
         settings_handler::get_settings_handler,
         settings_handler::update_settings_handler,
         settings_handler::verify_settings_handler,
@@ -45,6 +46,7 @@ use std::sync::Arc;
         SettingsResponse,
         UpdateSettingsRequest,
         VerifySettingsRequest,
+        crate::models::dto::TelemetryData,
         AppError,
         Role,
         User,
@@ -125,6 +127,10 @@ pub async fn create_router(app_state: AppState) -> Router {
         .route(
             "/api/emails",
             axum::routing::get(email_handler::get_emails_handler),
+        )
+        .route(
+            "/api/telemetry",
+            axum::routing::get(email_handler::get_telemetry_handler),
         )
         .route(
             "/api/admin/settings",

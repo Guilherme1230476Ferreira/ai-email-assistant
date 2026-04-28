@@ -6,18 +6,20 @@ export const load: PageServerLoad = async ({ fetch, cookies }) => {
 		const headers: Record<string, string> = token ? { 'Authorization': `Bearer ${token}` } : {};
 
 		// Fetch data from the Rust endpoints via the Vite proxy
-		const [emailsRes, usersRes, rolesRes, settingsRes] = await Promise.all([
+		const [emailsRes, usersRes, rolesRes, settingsRes, telemetryRes] = await Promise.all([
 			fetch('/api/emails', { headers }).catch(() => ({ json: () => [], ok: false })),
 			fetch('/api/admin/users', { headers }).catch(() => ({ json: () => [], ok: false })),
 			fetch('/api/admin/roles', { headers }).catch(() => ({ json: () => [], ok: false })),
-			fetch('/api/admin/settings', { headers }).catch(() => ({ json: () => null, ok: false }))
+			fetch('/api/admin/settings', { headers }).catch(() => ({ json: () => null, ok: false })),
+			fetch('/api/telemetry', { headers }).catch(() => ({ json: () => null, ok: false }))
 		]);
 
-		const [emails, users, roles, settings] = await Promise.all([
+		const [emails, users, roles, settings, telemetry] = await Promise.all([
 			emailsRes.ok ? emailsRes.json() : [],
 			usersRes.ok ? usersRes.json() : [],
 			rolesRes.ok ? rolesRes.json() : [],
 			settingsRes.ok ? settingsRes.json() : null,
+			telemetryRes.ok ? telemetryRes.json() : null,
 		]);
 
 		return {
@@ -26,6 +28,7 @@ export const load: PageServerLoad = async ({ fetch, cookies }) => {
 				usersCount: Array.isArray(users) ? users.length : 0,
 				rolesCount: Array.isArray(roles) ? roles.length : 0,
 			},
+			telemetry,
 			llm: settings || null,
 			recentEmails: Array.isArray(emails) ? emails.slice(0, 4) : []
 		};
@@ -33,6 +36,7 @@ export const load: PageServerLoad = async ({ fetch, cookies }) => {
 		console.error("Error fetching dashboard data:", error);
 		return {
 			stats: { emailsCount: 0, usersCount: 0, rolesCount: 0 },
+			telemetry: null,
 			llm: null,
 			recentEmails: []
 		};

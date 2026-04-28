@@ -156,8 +156,8 @@
             <span class="text-xs text-[var(--color-muted)]">
               {new Date(email.created_at).toLocaleString()}
             </span>
-            <p class="text-sm text-white font-medium">Prompt: {email.original_content}</p>
-            <p class="text-sm text-[var(--color-muted-foreground)]"><span class="text-[var(--color-accent)] mr-2">↳</span>{email.generated_response}</p>
+            <p class="text-sm text-white font-medium">Received message: {email.original_content}</p>
+            <p class="text-sm text-[var(--color-muted-foreground)]"><span class="text-[var(--color-accent)] mr-2">↳</span>Drafted Reply: {email.generated_response}</p>
           </div>
         </li>
       {:else}
@@ -200,7 +200,7 @@
           <div class="space-y-4">
             <div>
               <label for="prompt" class="block text-sm font-medium text-[var(--color-muted-foreground)] mb-1">
-                Instructions / Prompt
+                Incoming Email / Client Message
               </label>
               <textarea
                 id="prompt"
@@ -208,7 +208,7 @@
                 rows="4"
                 required
                 class="w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface-2)] p-3 text-sm text-white focus:border-[var(--color-accent)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
-                placeholder="E.g., Write a follow-up email to João about the refund..."
+                placeholder="Paste the email you received from the client here..."
               ></textarea>
             </div>
 

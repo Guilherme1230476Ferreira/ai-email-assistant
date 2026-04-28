@@ -230,8 +230,14 @@ pub async fn google_callback_handler(
         return Ok((
             StatusCode::SEE_OTHER,
             [
-                (axum::http::header::SET_COOKIE, "token=; Path=/; Max-Age=0".to_string()),
-                (axum::http::header::LOCATION, "http://localhost:5173/login?error=not_registered".to_string()),
+                (
+                    axum::http::header::SET_COOKIE,
+                    "token=; Path=/; Max-Age=0".to_string(),
+                ),
+                (
+                    axum::http::header::LOCATION,
+                    "http://localhost:5173/login?error=not_registered".to_string(),
+                ),
             ],
         ));
     }
@@ -239,16 +245,22 @@ pub async fn google_callback_handler(
     let user = match user_exists {
         Ok(user) => {
             if intent == "signup" {
-                 return Ok((
-                     StatusCode::SEE_OTHER,
-                     [
-                         (axum::http::header::SET_COOKIE, "token=; Path=/; Max-Age=0".to_string()),
-                         (axum::http::header::LOCATION, "http://localhost:5173/signup?error=already_registered".to_string()),
-                     ],
-                 ));
+                return Ok((
+                    StatusCode::SEE_OTHER,
+                    [
+                        (
+                            axum::http::header::SET_COOKIE,
+                            "token=; Path=/; Max-Age=0".to_string(),
+                        ),
+                        (
+                            axum::http::header::LOCATION,
+                            "http://localhost:5173/signup?error=already_registered".to_string(),
+                        ),
+                    ],
+                ));
             }
             user
-        },
+        }
         Err(_) => {
             let random_password = uuid::Uuid::new_v4().to_string(); // Inaccessible via normal login
             let payload = CreateUserRequest {
@@ -262,10 +274,7 @@ pub async fn google_callback_handler(
     let token = create_jwt(user.id, &config)?;
 
     // We set the token in a cookie and redirect back to the home page securely
-    let cookie_str = format!(
-        "token={}; Path=/; Max-Age={}; SameSite=Lax; HttpOnly",
-        token, 86400
-    );
+    let cookie_str = format!("token={}; Path=/; Max-Age={}; SameSite=Lax", token, 86400);
 
     let redirect_url = if intent == "signup" {
         "http://localhost:5173/login?success=registered".to_string()
