@@ -27,7 +27,7 @@ jobs:
       - name: SSH into root and deploy natively
         env:
           SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           # Save the SSH key securely
           mkdir -p ~/.ssh
@@ -42,8 +42,8 @@ jobs:
 
             echo "==> Pulling latest code..."
             cd /opt/ai-email-assistant
-            git remote set-url origin https://x-access-token:\${GITHUB_TOKEN}@github.com/Guilherme1230476Ferreira/ai-email-assistant.git
-            git pull origin main
+            # Pull directly using the temporary action token so we don't save an expiring token to git config
+            git pull https://x-access-token:${GITHUB_TOKEN}@github.com/Guilherme1230476Ferreira/ai-email-assistant.git main
 
             echo "==> Building Rust backend..."
             cd /opt/ai-email-assistant/backend
