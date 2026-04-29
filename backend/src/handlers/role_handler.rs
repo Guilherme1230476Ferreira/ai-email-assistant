@@ -11,7 +11,7 @@ use uuid::Uuid;
 use crate::{
     app_error::AppError,
     middleware::rbac::AdminUser,
-    models::{domain::Role, dto::CreateRoleRequest},
+    models::dto::CreateRoleRequest,
     repositories::{audit_repo::AuditRepository, role_repo::RoleRepository},
     state::AppState,
 };

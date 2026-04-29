@@ -3,6 +3,14 @@ name = "ai-email-assistant"
 version = "0.1.0"
 edition = "2024"
 
+[lib]
+name = "ai_email_assistant"
+path = "src/lib.rs"
+
+[[bin]]
+name = "ai-email-assistant"
+path = "src/main.rs"
+
 [dependencies]
 # Web framework
 axum = { version = "0.7.5", features = ["macros"] }
@@ -43,3 +51,8 @@ validator = "0.20.0"
 futures-util = "0.3.32"
 tokio-stream = "0.1.18"
 async-stream = "0.3"
+
+[dev-dependencies]
+tower = "0.5"
+http-body-util = "0.1"
+mime = "0.3"

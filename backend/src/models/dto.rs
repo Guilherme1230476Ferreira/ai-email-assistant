@@ -123,7 +123,7 @@ pub struct LogsQuery {
     pub to_date: Option<String>,
 }
 
-use super::domain::{Email, Role, User};
+use super::domain::Email;
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct GenerateEmailRequest {
@@ -142,6 +142,7 @@ pub struct PaginationParams {
     /// Page number (1-indexed). Defaults to 1.
     pub page: Option<i64>,
     /// Items per page. Defaults to 20, max 100.
+    #[serde(alias = "per_page")]
     pub limit: Option<i64>,
 }
 

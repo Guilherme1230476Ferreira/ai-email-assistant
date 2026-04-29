@@ -1,4 +1,3 @@
-use std::pin::Pin;
 use std::sync::Arc;
 
 use axum::{
@@ -15,7 +14,7 @@ use crate::{
     middleware::auth::AuthUser,
     models::{
         domain::Email,
-        dto::{GenerateEmailRequest, PaginatedResponse, PaginationParams, TelemetryData},
+        dto::{GenerateEmailRequest, PaginatedResponse, PaginationParams},
     },
     repositories::{email_repo::EmailRepository, settings_repo::SettingsRepository},
     services::llm_service::LlmService,

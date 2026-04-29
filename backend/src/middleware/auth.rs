@@ -1,10 +1,7 @@
-use std::sync::Arc;
-
 use axum::{
-    Json, async_trait,
+    async_trait,
     extract::FromRequestParts,
     http::{StatusCode, request::Parts},
-    response::{IntoResponse, Response},
 };
 use axum_extra::{
     TypedHeader,
@@ -16,8 +13,6 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{app_error::AppError, models::domain::User, state::AppState};
-
-const AUTH_ERROR_MESSAGE: &str = "Unable to validate credentials. Please log in again.";
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {

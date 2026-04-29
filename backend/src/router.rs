@@ -15,7 +15,6 @@ use crate::{
     },
     state::AppState,
 };
-use std::sync::Arc;
 
 #[derive(OpenApi)]
 #[openapi(

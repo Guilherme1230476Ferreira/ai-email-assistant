@@ -1,4 +1,6 @@
-use crate::models::domain::{Email, User};
+use crate::models::domain::Email;
+#[cfg(test)]
+use crate::models::domain::User;
 use pgvector::Vector;
 use sqlx::PgPool;
 use std::sync::Arc;

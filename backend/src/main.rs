@@ -1,18 +1,6 @@
-pub mod app_error;
-pub mod handlers;
-pub mod infrastructure;
-pub mod middleware;
-pub mod models;
-pub mod repositories;
-pub mod router;
-pub mod services;
-pub mod state;
-
-use infrastructure::config::Config;
-use router::create_router;
-use state::AppState;
-
-pub use app_error::AppError;
+use ai_email_assistant::infrastructure::config::Config;
+use ai_email_assistant::router::create_router;
+use ai_email_assistant::state::AppState;
 
 #[tokio::main]
 async fn main() {

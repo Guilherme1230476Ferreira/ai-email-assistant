@@ -105,7 +105,6 @@ mod tests {
     async fn test_create_and_get_logs(pool: PgPool) {
         let repo = AuditRepository::new(pool.clone());
 
-        let user_id = Uuid::new_v4(); // Doesn't matter if it doesn't exist since ON DELETE SET NULL implies it can be null but wait! user_id REFERENCES users(id). If it's a hard FK, we might need a real user or we can use NULL. Wait, if we use a random Uuid, it will violate FK constraint.
         // Let's test with None for user_id to avoid creating a user.
 
         let log = repo

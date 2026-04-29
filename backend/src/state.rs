@@ -1,7 +1,6 @@
 /// Application state — shared across all handlers via Axum's State extractor.
 /// Database pool and service initialization added in US-2.3.
 use std::sync::Arc;
-use tokio::sync::RwLock;
 
 use crate::infrastructure::config::Config;
 use crate::infrastructure::crypto::CryptoService;

@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use axum::{
     async_trait,
     extract::FromRequestParts,
@@ -7,8 +5,7 @@ use axum::{
 };
 
 use crate::{
-    app_error::AppError, middleware::auth::AuthUser, models::domain::User,
-    repositories::role_repo::RoleRepository, state::AppState,
+    app_error::AppError, middleware::auth::AuthUser, models::domain::User, state::AppState,
 };
 
 /// Axum extractor that validates the authenticated user has the "admin" role.

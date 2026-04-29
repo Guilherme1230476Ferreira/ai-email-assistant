@@ -17,10 +17,7 @@ use crate::{
     app_error::AppError,
     infrastructure::config::Config,
     middleware::auth::create_jwt,
-    models::{
-        domain::User,
-        dto::{CreateUserRequest, LoginRequest, LoginResponse},
-    },
+    models::dto::{CreateUserRequest, LoginRequest, LoginResponse},
     repositories::user_repo::UserRepository,
     state::AppState,
 };
@@ -183,11 +180,6 @@ pub async fn google_callback_handler(
     State(config): State<Arc<Config>>,
 ) -> Result<impl IntoResponse, AppError> {
     let client = get_google_client(&config)?;
-
-    let http_client = reqwest::ClientBuilder::new()
-        .redirect(reqwest::redirect::Policy::none())
-        .build()
-        .unwrap();
 
     // Exchange the code for a token.
     let token_result = client
