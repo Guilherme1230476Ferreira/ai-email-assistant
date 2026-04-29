@@ -60,6 +60,11 @@ jobs:
                /etc/nginx/sites-available/ai-email-assistant
             nginx -t && systemctl reload nginx
 
+            echo "==> Updating systemd services..."
+            cp /opt/ai-email-assistant/deploy/ai-backend.service /etc/systemd/system/
+            cp /opt/ai-email-assistant/deploy/ai-backoffice.service /etc/systemd/system/
+            systemctl daemon-reload
+
             echo "==> Restarting services..."
             systemctl restart ai-backend
             systemctl restart ai-backoffice
