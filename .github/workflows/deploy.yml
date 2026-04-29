@@ -8,35 +8,59 @@ on:
       - backend/**
       - backoffice/**
       - nginx/**
-      - docker-compose.yml
+      - deploy/**
       - .github/workflows/deploy.yml
   schedule:
     # Daily refresh at 06:00 UTC
     - cron: '0 6 * * *'
-  # Manual trigger from GitHub Actions UI
   workflow_dispatch:
 
 # ── Deploy Job ────────────────────────────────────────────────────────────────
-# Runs directly on the self-hosted runner (vs224.dei.isep.ipp.pt).
-# No SSH needed — the runner IS the server.
+# Runs directly on the self-hosted runner (vs224).
+# Builds natively — no Docker required.
 jobs:
   deploy:
-    name: Deploy Stack to vs224
+    name: Deploy to vs224 (native)
     runs-on: self-hosted
 
-    defaults:
-      run:
-        working-directory: /opt/ai-email-assistant
-
     steps:
+      # ── Pull latest code ────────────────────────────────────────────────────
       - name: Pull latest code
-        run: git pull origin main
+        run: git -C /opt/ai-email-assistant pull origin main
 
-      - name: Rebuild and restart containers
-        run: docker compose up -d --build --remove-orphans
+      # ── Build Rust backend ──────────────────────────────────────────────────
+      - name: Build backend
+        working-directory: /opt/ai-email-assistant/backend
+        env:
+          SQLX_OFFLINE: "true"
+        run: cargo build --release
 
-      - name: Remove dangling images
-        run: docker image prune -f
+      # ── Build SvelteKit backoffice ──────────────────────────────────────────
+      - name: Build backoffice
+        working-directory: /opt/ai-email-assistant/backoffice
+        run: |
+          npm ci
+          npm run build
 
-      - name: Show running services
-        run: docker compose ps
+      # ── Reload Nginx config if changed ─────────────────────────────────────
+      - name: Reload Nginx
+        run: |
+          cp /opt/ai-email-assistant/nginx/nginx.conf \
+             /etc/nginx/sites-available/ai-email-assistant
+          nginx -t && systemctl reload nginx
+
+      # ── Restart services (zero-downtime: stop → new binary already built) ──
+      - name: Restart services
+        run: |
+          systemctl restart ai-backend
+          systemctl restart ai-backoffice
+
+      # ── Health check ────────────────────────────────────────────────────────
+      - name: Health check
+        run: |
+          sleep 5
+          systemctl is-active --quiet ai-backend   || { journalctl -u ai-backend -n 30; exit 1; }
+          systemctl is-active --quiet ai-backoffice || { journalctl -u ai-backoffice -n 30; exit 1; }
+          echo "✅ All services running."
+          systemctl status ai-backend   --no-pager
+          systemctl status ai-backoffice --no-pager

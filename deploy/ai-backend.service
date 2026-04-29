@@ -1,0 +1,24 @@
+[Unit]
+Description=AI Email Assistant — Rust/Axum Backend
+Documentation=https://github.com/Guilherme1230476Ferreira/ai-email-assistant
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/ai-email-assistant/backend
+
+# Load all environment variables from the shared .env file
+EnvironmentFile=/opt/ai-email-assistant/.env
+
+ExecStart=/opt/ai-email-assistant/backend/target/release/ai-email-assistant
+
+# Restart automatically on crash
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ai-backend
+
+[Install]
+WantedBy=multi-user.target

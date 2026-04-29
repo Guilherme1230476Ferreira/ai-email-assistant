@@ -1,0 +1,27 @@
+[Unit]
+Description=AI Email Assistant — SvelteKit Backoffice
+Documentation=https://github.com/Guilherme1230476Ferreira/ai-email-assistant
+After=network.target ai-backend.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/ai-email-assistant/backoffice
+
+# Load shared env + override API URL to localhost (same machine, no Docker)
+EnvironmentFile=/opt/ai-email-assistant/.env
+Environment=BACKEND_URL=http://127.0.0.1:3000
+Environment=PORT=3001
+Environment=HOST=0.0.0.0
+
+ExecStart=/usr/bin/node /opt/ai-email-assistant/backoffice/build/index.js
+
+# Restart automatically on crash
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ai-backoffice
+
+[Install]
+WantedBy=multi-user.target
