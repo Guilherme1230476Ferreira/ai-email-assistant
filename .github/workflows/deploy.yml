@@ -27,18 +27,22 @@ jobs:
       - name: SSH into root and deploy natively
         env:
           SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Save the SSH key securely
           mkdir -p ~/.ssh
           echo "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
 
-          # Connect to localhost as root and execute the deployment commands
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no root@127.0.0.1 << 'EOF'
+          # Connect to localhost as root and execute the deployment commands.
+          # Note: We use unquoted EOF so that $GITHUB_TOKEN is evaluated by the runner
+          # and injected into the script before it is sent over SSH.
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no root@127.0.0.1 << EOF
             set -e
 
             echo "==> Pulling latest code..."
             cd /opt/ai-email-assistant
+            git remote set-url origin https://x-access-token:\${GITHUB_TOKEN}@github.com/Guilherme1230476Ferreira/ai-email-assistant.git
             git pull origin main
 
             echo "==> Building Rust backend..."
