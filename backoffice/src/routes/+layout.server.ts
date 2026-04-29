@@ -3,42 +3,38 @@ import { redirect } from '@sveltejs/kit';
 
 export const load: LayoutServerLoad = async ({ cookies, fetch, url }) => {
 	const token = cookies.get('token');
-	
-	if (!token && !url.pathname.startsWith('/login')) {
-		throw redirect(302, '/login');
-	}
+	const isPublic =
+		url.pathname.startsWith('/login') || url.pathname.startsWith('/signup');
 
-	if (!token) return { user: null };
-
-	let sub = null;
-	try {
-		const payload = token.split('.')[1];
-		// Base64 decode
-		const decodedStr = Buffer.from(payload, 'base64').toString('utf-8');
-		const decoded = JSON.parse(decodedStr);
-		sub = decoded.sub;
-	} catch (e) {
-		if (!url.pathname.startsWith('/login')) throw redirect(302, '/login');
-		return { user: null };
+	if (!token) {
+		if (!isPublic) throw redirect(302, '/login');
+		return { user: null, token: null };
 	}
 
 	try {
-		const headers: Record<string, string> = { 'Authorization': `Bearer ${token}` };
-		// Attempt to grab all users to find 'me'
-		const usersRes = await fetch('/api/admin/users', { headers });
-		let userProfile = { email: "User", initials: "U", role: "user" };
-		
-		if (usersRes.ok) {
-			const users = await usersRes.json();
-			const me = users.find((u: any) => u.id === sub);
-			if (me) {
-				userProfile.email = me.email;
-				userProfile.initials = me.email.substring(0, 2).toUpperCase();
-			}
+		// Validate token server-side via /api/auth/me (backend verifies JWT signature)
+		const res = await fetch('/api/auth/me', {
+			headers: { Authorization: `Bearer ${token}` }
+		});
+
+		if (!res.ok) {
+			if (!isPublic) throw redirect(302, '/login');
+			return { user: null, token: null };
 		}
 
-		return { user: userProfile };
-	} catch (err) {
-		return { user: null };
+		const me = await res.json();
+		return {
+			// Pass the token value to the client so it can be stored in the
+			// in-memory auth store and used for client-side API calls.
+			token,
+			user: {
+				email: me.email as string,
+				initials: (me.email as string).substring(0, 2).toUpperCase(),
+				role: 'user' as string
+			}
+		};
+	} catch (e) {
+		if (e && typeof e === 'object' && 'status' in e) throw e;
+		return { user: null, token: null };
 	}
 };

@@ -8,13 +8,17 @@ export const load: PageServerLoad = async ({ fetch, cookies, url }) => {
 	const limit = url.searchParams.get('limit') || '20';
 
 	try {
-		const res = await fetch(`/api/emails?page=${page}&limit=${limit}`, { headers });
+		const res = await fetch(`/api/admin/audit-logs?page=${page}&limit=${limit}`, { headers });
+		
 		if (res.ok) {
 			const data = await res.json();
-			return { emails: data.items, pagination: { page: data.page, limit: data.limit, total: data.total } };
+			return {
+				logs: data.items,
+				pagination: { page: data.page, limit: data.limit, total: data.total }
+			};
 		}
 	} catch (e) {
-		console.error("Error loading emails:", e);
+		console.error('Error loading audit logs:', e);
 	}
-	return { emails: [], pagination: { page: 1, limit: 20, total: 0 } };
+	return { logs: [], pagination: { page: 1, limit: 20, total: 0 } };
 };

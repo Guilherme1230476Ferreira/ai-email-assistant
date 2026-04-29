@@ -1,75 +1,44 @@
 <script lang="ts">
+  import { enhance } from '$app/forms';
   import { Sparkles, Mail, Lock, ArrowRight, Loader2 } from '@lucide/svelte';
-
   import { page } from '$app/state';
+  import type { ActionData } from './$types';
 
-  let email = $state('');
-  let password = $state('');
+  let { form }: { form: ActionData } = $props();
+
   let loading = $state(false);
-  let error = $state<string | null>(null);
-  let success = $state<string | null>(null);
 
-  $effect(() => {
-     let searchParams = page.url.searchParams;
-     if (searchParams.get('error') === 'not_registered') {
-        error = "User not registered yet. Please create an account first.";
-     }
-     if (searchParams.get('success') === 'registered') {
-        success = "Registration successful! You can now sign in.";
-     }
-  });
+  // URL params from Google OAuth redirects
+  let urlError = $derived(page.url.searchParams.get('error'));
+  let urlSuccess = $derived(page.url.searchParams.get('success'));
+
+  let errorMessage = $derived(
+    form?.error ??
+    (urlError === 'not_registered' ? 'User not registered. Please create an account first.' : null)
+  );
+  let successMessage = $derived(
+    urlSuccess === 'registered' ? 'Registration successful! You can now sign in.' : null
+  );
 
   function handleGoogleLogin() {
     window.location.href = '/api/auth/google?intent=login';
   }
-
-  async function handleSubmit(e: SubmitEvent) {
-    e.preventDefault();
-    error = null;
-    loading = true;
-    try {
-      // POST /api/auth/login -> { token }
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
-      });
-      if (!res.ok) {
-        error = 'Invalid email or password.';
-        return;
-      }
-      const data = await res.json();
-      document.cookie = `token=${data.token}; path=/; max-age=86400; samesite=lax`;
-      window.location.href = '/';
-    } catch {
-      error = 'Could not reach the server.';
-    } finally {
-      loading = false;
-    }
-  }
 </script>
 
 <div class="relative flex min-h-screen items-center justify-center px-4 py-12">
-  <div
-    class="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(34,211,238,0.08),_transparent_60%)]"
-  ></div>
+  <div class="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(34,211,238,0.08),_transparent_60%)]"></div>
 
   <div class="relative w-full max-w-md">
     <div class="mb-10 flex flex-col items-center text-center">
-      <div
-        class="mb-6 flex h-14 w-14 items-center justify-center rounded-lg bg-[var(--color-accent)] text-black shadow-lg"
-      >
+      <div class="mb-6 flex h-14 w-14 items-center justify-center rounded-lg bg-[var(--color-accent)] text-black shadow-lg">
         <Sparkles class="h-8 w-8" strokeWidth={2.5} />
       </div>
       <h1 class="text-3xl font-bold tracking-tight text-white">Sign in to Mailwise</h1>
-      <p class="mt-2.5 text-base text-[var(--color-muted)]">
-        Welcome back. Enter your details to continue.
-      </p>
+      <p class="mt-2.5 text-base text-[var(--color-muted)]">Welcome back. Enter your details to continue.</p>
     </div>
 
     <div class="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-8 shadow-2xl shadow-black/50">
-      
-      <!-- Gmail / OAuth Option -->
+
       <button
         type="button"
         onclick={handleGoogleLogin}
@@ -86,85 +55,59 @@
 
       <div class="relative mb-6 flex items-center py-2">
         <div class="flex-grow border-t border-[var(--color-border)]"></div>
-        <span class="mx-4 flex-shrink text-xs text-[var(--color-muted-foreground)] uppercase">Or continue with email</span>
+        <span class="mx-4 flex-shrink text-xs uppercase text-[var(--color-muted-foreground)]">Or continue with email</span>
         <div class="flex-grow border-t border-[var(--color-border)]"></div>
       </div>
 
-      <form onsubmit={handleSubmit}>
-        {#if error}
-          <div
-            class="mb-6 rounded-md border border-red-500/30 bg-red-500/5 px-4 py-3 text-sm text-red-300"
-          >
-            {error}
-            {#if error.includes("User not registered")}
-              <a href="/signup" class="font-bold underline ml-1 text-white hover:text-[var(--color-accent)]">Create one &rarr;</a>
+      <!-- Server-action form — no client-side fetch needed -->
+      <form method="POST" use:enhance={() => {
+        loading = true;
+        return async ({ update }) => { loading = false; await update(); };
+      }}>
+
+        {#if errorMessage}
+          <div class="mb-6 rounded-md border border-red-500/30 bg-red-500/5 px-4 py-3 text-sm text-red-300">
+            {errorMessage}
+            {#if urlError === 'not_registered'}
+              <a href="/signup" class="ml-1 font-bold underline text-white hover:text-[var(--color-accent)]">Create one &rarr;</a>
             {/if}
           </div>
         {/if}
-        {#if success}
-          <div
-            class="mb-6 rounded-md border border-[#34A853]/30 bg-[#34A853]/5 px-4 py-3 text-sm text-[#34A853]"
-          >
-            {success}
+
+        {#if successMessage}
+          <div class="mb-6 rounded-md border border-emerald-500/30 bg-emerald-500/5 px-4 py-3 text-sm text-emerald-300">
+            {successMessage}
           </div>
         {/if}
 
-      <div class="space-y-6">
-        <div>
-          <label for="email" class="mb-2 block text-sm font-medium text-[var(--color-muted-foreground)]">
-            Email
-          </label>
-          <div class="relative">
-            <Mail
-              class="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[var(--color-muted)]"
-            />
-            <input
-              id="email"
-              type="email"
-              required
-              autocomplete="email"
-              bind:value={email}
-              placeholder="you@company.com"
-              class="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-2)] py-3 pl-12 pr-4 text-base text-white placeholder:text-[var(--color-muted)] focus:border-[var(--color-accent)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
-            />
+        <div class="space-y-6">
+          <div>
+            <label for="email" class="mb-2 block text-sm font-medium text-[var(--color-muted-foreground)]">Email</label>
+            <div class="relative">
+              <Mail class="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[var(--color-muted)]" />
+              <input id="email" name="email" type="email" required autocomplete="email" placeholder="you@company.com"
+                class="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-2)] py-3 pl-12 pr-4 text-base text-white placeholder:text-[var(--color-muted)] focus:border-[var(--color-accent)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)]" />
+            </div>
+          </div>
+
+          <div>
+            <div class="mb-2 flex items-center justify-between">
+              <label for="password" class="block text-sm font-medium text-[var(--color-muted-foreground)]">Password</label>
+            </div>
+            <div class="relative">
+              <Lock class="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[var(--color-muted)]" />
+              <input id="password" name="password" type="password" required autocomplete="current-password" placeholder="••••••••"
+                class="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-2)] py-3 pl-12 pr-4 text-base text-white placeholder:text-[var(--color-muted)] focus:border-[var(--color-accent)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)]" />
+            </div>
           </div>
         </div>
 
-        <div>
-          <div class="mb-2 flex items-center justify-between">
-            <label for="password" class="block text-sm font-medium text-[var(--color-muted-foreground)]">
-              Password
-            </label>
-            <a href="/forgot" class="text-sm font-medium text-[var(--color-accent)] hover:underline">Forgot password?</a>
-          </div>
-          <div class="relative">
-            <Lock
-              class="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[var(--color-muted)]"
-            />
-            <input
-              id="password"
-              type="password"
-              required
-              autocomplete="current-password"
-              bind:value={password}
-              placeholder="••••••••"
-              class="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-2)] py-3 pl-12 pr-4 text-base text-white placeholder:text-[var(--color-muted)] focus:border-[var(--color-accent)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
-            />
-          </div>
-        </div>
-      </div>
-
-        <button
-          type="submit"
-          disabled={loading}
-          class="mt-8 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--color-accent)] px-4 py-3.5 text-base font-bold text-black transition hover:bg-[var(--color-accent-hover)] disabled:cursor-not-allowed disabled:opacity-60"
-        >
+        <button type="submit" disabled={loading}
+          class="mt-8 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--color-accent)] px-4 py-3.5 text-base font-bold text-black transition hover:bg-[var(--color-accent-hover)] disabled:cursor-not-allowed disabled:opacity-60">
           {#if loading}
-            <Loader2 class="h-5 w-5 animate-spin" />
-            <span>Signing in...</span>
+            <Loader2 class="h-5 w-5 animate-spin" /> Signing in...
           {:else}
-            <span>Sign in</span>
-            <ArrowRight class="h-5 w-5" />
+            Sign in <ArrowRight class="h-5 w-5" />
           {/if}
         </button>
       </form>

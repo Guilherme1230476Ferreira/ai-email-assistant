@@ -1,101 +1,102 @@
 <script lang="ts">
   import type { PageData } from './$types';
   import { invalidateAll } from '$app/navigation';
-  import { Sparkles, Search, Loader2, X, Database, Users, Calendar, FileText, CheckCircle2 } from '@lucide/svelte';
+  import { Sparkles, Search, X, Database, ChevronDown, ChevronUp, Copy, Check } from '@lucide/svelte';
+  import { api } from '$lib/api';
+  import { goto } from '$app/navigation';
 
   let { data }: { data: PageData } = $props();
 
   let searchQuery = $state('');
   let isModalOpen = $state(false);
   let promptText = $state('');
-  
-  // Animation & AI Context States
+
+  // Generation states
   let isGenerating = $state(false);
   let processingStep = $state<'idle' | 'gathering' | 'generating'>('idle');
   let terminalLogs = $state<string[]>([]);
+  let modalError = $state<string | null>(null);
 
-  // Idea 2: Dynamic Context Tags (Knowledge Badges)
-  let detectedContexts = $derived.by(() => {
-    const text = promptText.toLowerCase();
-    const tags = [];
-    if (text.includes('refund') || text.includes('money')) {
-      tags.push({ label: '2 past refund tickets', icon: FileText, color: 'text-emerald-400', bg: 'bg-emerald-400/10', border: 'border-emerald-400/20' });
-    }
-    if (text.includes('meeting') || text.includes('call') || text.includes('schedule')) {
-      tags.push({ label: 'Calendar: 1 free slot', icon: Calendar, color: 'text-blue-400', bg: 'bg-blue-400/10', border: 'border-blue-400/20' });
-    }
-    if (text.includes('joão') || text.includes('client') || text.includes('customer')) {
-      tags.push({ label: 'CRM: Profile Found', icon: Users, color: 'text-purple-400', bg: 'bg-purple-400/10', border: 'border-purple-400/20' });
-    }
-    return tags;
-  });
+  // Email detail expand state
+  let expandedEmailId = $state<string | null>(null);
+  let copiedEmailId = $state<string | null>(null);
 
-  function getToken() {
-    const match = document.cookie.match(/(^| )token=([^;]+)/);
-    return match ? match[2] : null;
+  function openModal() {
+    isModalOpen = true;
+    modalError = null;
+    promptText = '';
+    terminalLogs = [];
+    processingStep = 'idle';
   }
 
-  // Idea 1 & 4 Implementation: Terminal Log Sequence
+  function closeModal() {
+    if (isGenerating) return; // block close while running
+    isModalOpen = false;
+    isGenerating = false;
+    processingStep = 'idle';
+    terminalLogs = [];
+    modalError = null;
+  }
+
   async function handleGenerate(e: Event) {
     e.preventDefault();
     if (!promptText.trim()) return;
-    
-    isGenerating = true;
-    terminalLogs = [];
-    
-    // Simulate Chain-of-Thought
-    processingStep = 'gathering';
-    terminalLogs = [...terminalLogs, '> Analyzing prompt semantics...'];
-    await new Promise(r => setTimeout(r, 600));
-    
-    terminalLogs = [...terminalLogs, `> Found ${detectedContexts.length} relevant context markers.`];
-    await new Promise(r => setTimeout(r, 800));
-    
-    terminalLogs = [...terminalLogs, '> Querying vector database for similar tone...'];
-    await new Promise(r => setTimeout(r, 900));
 
-    terminalLogs = [...terminalLogs, '> Initiating LLM text generation sequence...'];
+    isGenerating = true;
+    modalError = null;
+    terminalLogs = [];
+
+    processingStep = 'gathering';
+    terminalLogs = ['> Analyzing prompt semantics...', '> Querying vector database for similar tone...', '> Initiating LLM text generation sequence...'];
     processingStep = 'generating';
     
-    try {
-      const res = await fetch('/api/emails/generate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${getToken()}`
+    // Add empty line for the stream
+    terminalLogs = [...terminalLogs, '> '];
+
+    await api.generateEmailStream(
+        promptText,
+        (token) => {
+            // Append token to the last log line
+            terminalLogs[terminalLogs.length - 1] += token;
+            terminalLogs = [...terminalLogs]; // trigger reactivity
         },
-        body: JSON.stringify({ prompt: promptText })
-      });
+        (err) => {
+            terminalLogs = [...terminalLogs, `> ERROR: ${err}`];
+            modalError = err;
+            isGenerating = false;
+            processingStep = 'idle';
+        },
+        async () => {
+            terminalLogs = [...terminalLogs, '> LLM completion successful.', '> Ready.'];
+            
+            promptText = '';
+            isGenerating = false;
+            processingStep = 'idle';
+            isModalOpen = false;
+            await invalidateAll();
+        }
+    );
+  }
 
-      if (res.ok) {
-        terminalLogs = [...terminalLogs, '> LLM completion successful. Applying safety filters...'];
-        await new Promise(r => setTimeout(r, 800));
-        
-        terminalLogs = [...terminalLogs, '> Ready.'];
-        await new Promise(r => setTimeout(r, 400));
+  function toggleExpand(id: string) {
+      if (expandedEmailId === id) {
+          expandedEmailId = null;
+      } else {
+          expandedEmailId = id;
+      }
+  }
 
-        promptText = '';
-        isModalOpen = false;
-        processingStep = 'idle';
-        await invalidateAll(); // Refresh data
-      } else {
-        terminalLogs = [...terminalLogs, '> ERROR: LLM returned an invalid response.'];
-        console.error('Failed to generate.');
-      }
-    } catch (err) {
-      terminalLogs = [...terminalLogs, '> ERROR: Connection failed.'];
-      console.error(err);
-    } finally {
-      if (processingStep === 'generating') {
-        setTimeout(() => {
-          isGenerating = false;
-          processingStep = 'idle';
-        }, 1500);
-      } else {
-         isGenerating = false;
-         processingStep = 'idle';
-      }
-    }
+  function copyReply(id: string, text: string, e: Event) {
+      e.stopPropagation(); // prevent toggling expand
+      navigator.clipboard.writeText(text);
+      copiedEmailId = id;
+      setTimeout(() => {
+          copiedEmailId = null;
+      }, 2000);
+  }
+
+  function goToPage(page: number) {
+      goto(`/emails?page=${page}&limit=${data.pagination.limit}`);
   }
 
   let filteredEmails = $derived(
@@ -107,21 +108,13 @@
       );
     })
   );
-  
-  // Closing modal resets state
-  function closeModal() {
-    isModalOpen = false;
-    isGenerating = false;
-    processingStep = 'idle';
-    terminalLogs = [];
-  }
 </script>
 
 <svelte:head>
   <title>Emails · Mailwise</title>
 </svelte:head>
 
-<div class="mx-auto w-full max-w-5xl space-y-8">
+<div class="mx-auto w-full max-w-5xl space-y-8 pb-12">
   <header class="flex flex-col gap-4 mb-8">
     <div>
       <h1 class="text-2xl font-semibold tracking-tight text-white">Emails</h1>
@@ -134,12 +127,12 @@
         <input
           type="text"
           bind:value={searchQuery}
-          placeholder="Search by sender or subject"
+          placeholder="Search by content or reply"
           class="w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface-2)] py-2.5 pl-9 pr-4 text-sm text-white placeholder:text-[var(--color-muted)] focus:border-[var(--color-accent)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
         />
       </div>
       <button
-        onclick={() => (isModalOpen = true)}
+        onclick={openModal}
         class="flex w-full sm:w-auto items-center gap-2 rounded-md bg-[var(--color-accent)] px-4 py-2.5 text-sm font-semibold text-black transition hover:bg-[var(--color-accent-hover)]"
       >
         <Sparkles class="h-4 w-4" />
@@ -148,56 +141,128 @@
     </div>
   </header>
 
-  <div class="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]">
+  <div class="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden">
     <ul class="divide-y divide-[var(--color-border)]">
       {#each filteredEmails as email (email.id)}
-        <li class="px-5 py-4 hover:bg-[var(--color-surface-2)]/50">
-          <div class="flex flex-col space-y-2">
-            <span class="text-xs text-[var(--color-muted)]">
-              {new Date(email.created_at).toLocaleString()}
-            </span>
-            <p class="text-sm text-white font-medium">Received message: {email.original_content}</p>
-            <p class="text-sm text-[var(--color-muted-foreground)]"><span class="text-[var(--color-accent)] mr-2">↳</span>Drafted Reply: {email.generated_response}</p>
+        <li class="hover:bg-[var(--color-surface-2)]/30 transition-colors">
+          <!-- svelte-ignore a11y_click_events_have_key_events -->
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <div class="px-5 py-4 cursor-pointer" onclick={() => toggleExpand(email.id)}>
+            <div class="flex justify-between items-start">
+              <div class="flex flex-col space-y-2 flex-1 min-w-0 pr-4">
+                <span class="text-xs text-[var(--color-muted)]">
+                  {new Date(email.created_at).toLocaleString()}
+                </span>
+                <p class="text-sm text-white font-medium truncate">Received: {email.original_content}</p>
+                <p class="text-sm text-[var(--color-muted-foreground)] truncate">
+                  <span class="text-[var(--color-accent)] mr-2">↳</span>Reply: {email.generated_response}
+                </p>
+              </div>
+              <button class="text-[var(--color-muted)] hover:text-white transition-colors mt-2">
+                {#if expandedEmailId === email.id}
+                    <ChevronUp class="w-5 h-5" />
+                {:else}
+                    <ChevronDown class="w-5 h-5" />
+                {/if}
+              </button>
+            </div>
           </div>
+          
+          {#if expandedEmailId === email.id}
+            <div class="px-5 pb-5 pt-2 border-t border-[var(--color-border)]/50 bg-[var(--color-surface-2)]/20 animate-in slide-in-from-top-2 fade-in duration-200">
+                <div class="space-y-4 mt-2">
+                    <div>
+                        <h4 class="text-xs font-semibold text-[var(--color-muted-foreground)] uppercase tracking-wider mb-2">Original Message</h4>
+                        <div class="p-3 rounded-md bg-[var(--color-surface-2)] border border-[var(--color-border)] text-sm text-gray-300 whitespace-pre-wrap leading-relaxed">{email.original_content}</div>
+                    </div>
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <h4 class="text-xs font-semibold text-[var(--color-accent)] uppercase tracking-wider">Generated Reply</h4>
+                            <button 
+                                onclick={(e) => copyReply(email.id, email.generated_response, e)}
+                                class="flex items-center gap-1.5 text-xs font-medium text-[var(--color-muted-foreground)] hover:text-white transition-colors bg-[var(--color-surface-2)] px-2.5 py-1 rounded-md border border-[var(--color-border)] hover:border-[var(--color-muted)]"
+                            >
+                                {#if copiedEmailId === email.id}
+                                    <Check class="w-3.5 h-3.5 text-green-400" />
+                                    <span class="text-green-400">Copied</span>
+                                {:else}
+                                    <Copy class="w-3.5 h-3.5" />
+                                    <span>Copy Reply</span>
+                                {/if}
+                            </button>
+                        </div>
+                        <div class="p-4 rounded-md bg-black/30 border border-[var(--color-border)] text-sm text-white whitespace-pre-wrap leading-relaxed relative group">
+                            {email.generated_response}
+                        </div>
+                    </div>
+                </div>
+            </div>
+          {/if}
         </li>
       {:else}
         <li class="px-5 py-10 text-center text-sm text-[var(--color-muted-foreground)]">
-          {searchQuery ? "No matching emails found." : "No emails found."}
+          {searchQuery ? 'No matching emails found.' : 'No emails generated yet.'}
         </li>
       {/each}
     </ul>
+    
+    <!-- Pagination -->
+    {#if data.pagination && data.pagination.total > data.pagination.limit && !searchQuery}
+        <div class="px-5 py-4 border-t border-[var(--color-border)] flex items-center justify-between bg-[var(--color-surface-2)]/30">
+            <span class="text-sm text-[var(--color-muted-foreground)]">
+                Showing {((data.pagination.page - 1) * data.pagination.limit) + 1} to {Math.min(data.pagination.page * data.pagination.limit, data.pagination.total)} of {data.pagination.total} emails
+            </span>
+            <div class="flex gap-2">
+                <button 
+                    disabled={data.pagination.page <= 1}
+                    onclick={() => goToPage(data.pagination.page - 1)}
+                    class="px-3 py-1.5 rounded-md text-sm font-medium border border-[var(--color-border)] bg-[var(--color-surface)] text-white hover:bg-[var(--color-surface-2)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                    Previous
+                </button>
+                <button 
+                    disabled={data.pagination.page * data.pagination.limit >= data.pagination.total}
+                    onclick={() => goToPage(data.pagination.page + 1)}
+                    class="px-3 py-1.5 rounded-md text-sm font-medium border border-[var(--color-border)] bg-[var(--color-surface)] text-white hover:bg-[var(--color-surface-2)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                    Next
+                </button>
+            </div>
+        </div>
+    {/if}
   </div>
 </div>
 
 {#if isModalOpen}
   <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-    <div class="w-full max-w-lg rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-2xl transition-all duration-300 relative overflow-hidden">
-      
+    <div class="w-full max-w-lg rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-2xl relative overflow-hidden">
+
       {#if isGenerating}
-        <!-- Decorative Glow Background while generating -->
         <div class="absolute -top-32 -left-32 w-64 h-64 bg-[var(--color-accent)] opacity-5 rounded-full blur-3xl pointer-events-none animate-pulse"></div>
-        <div class="absolute -bottom-32 -right-32 w-64 h-64 bg-[#a855f7] opacity-5 rounded-full blur-3xl pointer-events-none animate-pulse" style="animation-delay: 1s;"></div>
+        <div class="absolute -bottom-32 -right-32 w-64 h-64 bg-[#a855f7] opacity-5 rounded-full blur-3xl pointer-events-none animate-pulse" style="animation-delay:1s;"></div>
       {/if}
 
       <div class="flex items-center justify-between mb-4 relative z-10">
         <h2 class="text-lg font-semibold text-white">
-          {#if isGenerating}
-            AI Processing
-          {:else}
-            Generate New Email
-          {/if}
+          {isGenerating ? 'AI Processing' : 'Generate New Email'}
         </h2>
-        
         {#if !isGenerating}
-        <button onclick={closeModal} class="text-[var(--color-muted)] hover:text-white transition-colors">
-          <X class="h-5 w-5" />
-        </button>
+          <button onclick={closeModal} class="text-[var(--color-muted)] hover:text-white transition-colors">
+            <X class="h-5 w-5" />
+          </button>
         {/if}
       </div>
 
       <form onsubmit={handleGenerate} class="relative z-10">
         {#if !isGenerating}
           <div class="space-y-4">
+            <!-- Error banner -->
+            {#if modalError}
+              <div class="rounded-md border border-red-500/30 bg-red-500/8 px-4 py-3 text-sm text-red-300">
+                {modalError}
+              </div>
+            {/if}
+
             <div>
               <label for="prompt" class="block text-sm font-medium text-[var(--color-muted-foreground)] mb-1">
                 Incoming Email / Client Message
@@ -212,56 +277,29 @@
               ></textarea>
             </div>
 
-            <!-- Idea 2 UI: Dynamic Context Badges -->
-            <div class="min-h-[40px]">
-              {#if detectedContexts.length > 0}
-                <div class="flex flex-wrap gap-2 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                  {#each detectedContexts as tag}
-                    <span class={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${tag.bg} ${tag.color} ${tag.border}`}>
-                      <tag.icon class="h-3 w-3" />
-                      {tag.label}
-                    </span>
-                  {/each}
-                </div>
-              {:else if promptText.length > 5}
-                <span class="text-xs text-[var(--color-muted)] flex items-center gap-1.5 animate-in fade-in duration-300">
-                  <Database class="h-3 w-3" /> Waiting for identifiable context keywords...
-                </span>
-              {/if}
-            </div>
+            <!-- Honest context info -->
+            {#if promptText.length > 5}
+              <div class="flex items-center gap-2 text-xs text-[var(--color-muted)]">
+                <Database class="h-3 w-3" />
+                Your previous email replies will be used as context via vector search.
+              </div>
+            {/if}
 
             <div class="flex justify-end gap-3 pt-2">
-              <button
-                type="button"
-                onclick={closeModal}
-                class="rounded-md px-4 py-2 text-sm font-medium text-white hover:bg-[var(--color-surface-2)] transition-colors"
-              >
+              <button type="button" onclick={closeModal}
+                class="rounded-md px-4 py-2 text-sm font-medium text-white hover:bg-[var(--color-surface-2)] transition-colors">
                 Cancel
               </button>
-              <button
-                type="submit"
-                class="flex items-center justify-center gap-2 rounded-md bg-[var(--color-accent)] px-4 py-2 text-sm font-semibold text-black transition hover:bg-[var(--color-accent-hover)]"
-              >
+              <button type="submit"
+                class="flex items-center justify-center gap-2 rounded-md bg-[var(--color-accent)] px-4 py-2 text-sm font-semibold text-black transition hover:bg-[var(--color-accent-hover)]">
                 <Sparkles class="h-4 w-4" />
                 Generate Email
               </button>
             </div>
           </div>
         {:else}
-          <!-- Idea 1 & 4 UI: Mini Knowledge Graph & Terminal -->
-          <div class="space-y-6 pt-4 animate-in zoom-in-95 duration-500">
-            
-            <!-- Visual Graph Area -->
+          <div class="space-y-6 pt-4">
             <div class="flex justify-center items-center py-6 h-32 relative">
-              <!-- Animated connection lines -->
-              <div class="absolute inset-0 flex justify-center items-center">
-                {#if processingStep === 'gathering'}
-                <div class="w-32 border-t border-dashed border-[var(--color-accent)] opacity-40 absolute animate-pulse"></div>
-                <div class="h-32 border-l border-dashed border-[var(--color-accent)] opacity-40 absolute animate-pulse" style="animation-delay: 0.5s;"></div>
-                {/if}
-              </div>
-              
-              <!-- Center LLM Node -->
               <div class="relative z-10 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--color-surface-2)] border-2 border-[var(--color-accent)] shadow-[0_0_15px_rgba(45,212,191,0.4)]">
                 {#if processingStep === 'gathering'}
                   <Database class="h-6 w-6 text-[var(--color-accent)] animate-pulse" />
@@ -269,31 +307,21 @@
                   <Sparkles class="h-6 w-6 text-[var(--color-accent)] animate-spin-slow" />
                 {/if}
               </div>
-
-              <!-- Orbiting context node (CSS mock) -->
-              {#if processingStep === 'gathering' && detectedContexts.length > 0}
-              <div class="absolute inset-0 animate-spin-slow pointer-events-none" style="animation-duration: 4s;">
-                <div class="absolute top-2 left-1/2 -ml-3 flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500/20 border border-emerald-500/50">
-                  <CheckCircle2 class="h-3 w-3 text-emerald-400" />
-                </div>
-              </div>
-              {/if}
             </div>
 
-            <!-- Terminal Chain of Thought Log -->
-            <div class="rounded-md border border-[var(--color-border)] bg-black/50 p-4 font-mono text-xs text-green-400 h-40 overflow-y-auto shadow-inner flex flex-col gap-1.5">
+            <!-- Terminal log -->
+            <div class="rounded-md border border-[var(--color-border)] bg-black/50 p-4 font-mono text-xs text-green-400 h-40 overflow-y-auto shadow-inner flex flex-col gap-1.5 whitespace-pre-wrap">
               {#each terminalLogs as log}
                 <div class="animate-in slide-in-from-left-2 fade-in duration-300 opacity-90">{log}</div>
               {/each}
               <div class="opacity-50 animate-pulse flex items-center h-4">_</div>
             </div>
 
-            <!-- Progress Bar -->
+            <!-- Progress bar -->
             <div class="w-full bg-[var(--color-surface-2)] h-1.5 rounded-full overflow-hidden">
-               <div 
-                 class="bg-[var(--color-accent)] h-full transition-all duration-500 ease-out"
-                 style={`width: ${processingStep === 'gathering' ? '45%' : '85%'}`}
-               ></div>
+              <div class="bg-[var(--color-accent)] h-full transition-all duration-500 ease-out"
+                style={`width: ${processingStep === 'gathering' ? '45%' : '85%'}`}
+              ></div>
             </div>
           </div>
         {/if}

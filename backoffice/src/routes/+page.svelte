@@ -221,16 +221,16 @@
 
       <div class="grid grid-cols-2 gap-4 mt-6">
         <div class="p-3 rounded-md bg-[var(--color-surface-2)] flex flex-col gap-1">
-          <span class="text-[10px] text-[var(--color-muted-foreground)] uppercase font-semibold">Avg. Query Latency</span>
-          <span class="text-lg font-bold text-white">412<span class="text-[10px] text-[var(--color-muted)] ml-1">ms</span></span>
+          <span class="text-[10px] text-[var(--color-muted-foreground)] uppercase font-semibold">Context Rate</span>
+          <span class="text-lg font-bold text-white">{ragMetrics.contextRetrievalRate}</span>
         </div>
         <div class="p-3 rounded-md bg-[var(--color-surface-2)] flex flex-col gap-1">
           <span class="text-[10px] text-[var(--color-muted-foreground)] uppercase font-semibold">Tokens Processed</span>
           <span class="text-lg font-bold text-white">{ragMetrics.tokensSaved.toLocaleString()}</span>
         </div>
         <div class="p-3 rounded-md bg-[var(--color-surface-2)] flex flex-col gap-1">
-          <span class="text-[10px] text-[var(--color-muted-foreground)] uppercase font-semibold">Vector Dimensions</span>
-          <span class="text-lg font-bold text-[var(--color-accent)]">1536</span>
+          <span class="text-[10px] text-[var(--color-muted-foreground)] uppercase font-semibold">Avg. Similarity</span>
+          <span class="text-lg font-bold text-[var(--color-accent)]">{ragMetrics.avgSimilarityScore}</span>
         </div>
         <div class="p-3 rounded-md bg-[var(--color-surface-2)] flex flex-col gap-1">
           <span class="text-[10px] text-[var(--color-muted-foreground)] uppercase font-semibold">Knowledge Matches</span>

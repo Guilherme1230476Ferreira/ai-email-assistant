@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 /// JSON request/response structs — separate from database entities.
 /// Will be fleshed out in Sprint 3.
 use serde::{Deserialize, Serialize};
@@ -68,12 +69,24 @@ pub struct RoleResponse {
     pub name: String,
 }
 
-/// Response for user-related endpoints.
+/// Response for user-related endpoints (never includes password_hash).
 #[derive(Debug, serde::Serialize, ToSchema)]
 pub struct UserResponse {
     pub id: Uuid,
     pub email: String,
     pub role_id: Uuid,
+    pub created_at: DateTime<Utc>,
+}
+
+impl From<super::domain::User> for UserResponse {
+    fn from(u: super::domain::User) -> Self {
+        Self {
+            id: u.id,
+            email: u.email,
+            role_id: u.role_id,
+            created_at: u.created_at,
+        }
+    }
 }
 
 /// Request body for the login endpoint.
@@ -121,4 +134,39 @@ pub struct GenerateEmailRequest {
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct GenerateEmailResponse {
     pub email: Email,
+}
+
+/// Query parameters for paginated list endpoints.
+#[derive(Debug, Deserialize, IntoParams)]
+pub struct PaginationParams {
+    /// Page number (1-indexed). Defaults to 1.
+    pub page: Option<i64>,
+    /// Items per page. Defaults to 20, max 100.
+    pub limit: Option<i64>,
+}
+
+impl PaginationParams {
+    pub fn offset_limit(&self) -> (i64, i64) {
+        let limit = self.limit.unwrap_or(20).min(100).max(1);
+        let page = self.page.unwrap_or(1).max(1);
+        let offset = (page - 1) * limit;
+        (offset, limit)
+    }
+
+    pub fn page_num(&self) -> i64 {
+        self.page.unwrap_or(1).max(1)
+    }
+
+    pub fn per_page(&self) -> i64 {
+        self.limit.unwrap_or(20).min(100).max(1)
+    }
+}
+
+/// Generic paginated response wrapper.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct PaginatedResponse<T: Serialize> {
+    pub items: Vec<T>,
+    pub total: i64,
+    pub page: i64,
+    pub limit: i64,
 }

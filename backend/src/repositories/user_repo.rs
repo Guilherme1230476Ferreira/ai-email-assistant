@@ -100,6 +100,28 @@ impl UserRepository {
         )
     }
 
+    pub async fn get_all_users_paginated(
+        &self,
+        offset: i64,
+        limit: i64,
+    ) -> Result<Vec<User>, AppError> {
+        Ok(sqlx::query_as!(
+            User,
+            "SELECT * FROM users ORDER BY created_at DESC LIMIT $1 OFFSET $2",
+            limit,
+            offset
+        )
+        .fetch_all(&*self.pool)
+        .await?)
+    }
+
+    pub async fn get_user_count(&self) -> Result<i64, AppError> {
+        let record = sqlx::query!("SELECT COUNT(*) as count FROM users")
+            .fetch_one(&*self.pool)
+            .await?;
+        Ok(record.count.unwrap_or(0))
+    }
+
     pub async fn delete_user(&self, user_id: Uuid) -> Result<(), AppError> {
         let result = sqlx::query!("DELETE FROM users WHERE id = $1", user_id)
             .execute(&*self.pool)

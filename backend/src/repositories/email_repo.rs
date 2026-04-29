@@ -76,6 +76,39 @@ impl EmailRepository {
         Ok(emails)
     }
 
+    pub async fn get_emails_by_user_paginated(
+        &self,
+        user_id: Uuid,
+        offset: i64,
+        limit: i64,
+    ) -> Result<Vec<Email>, sqlx::Error> {
+        sqlx::query_as!(
+            Email,
+            r#"
+            SELECT id, user_id, original_content, generated_response, created_at, updated_at
+            FROM emails
+            WHERE user_id = $1
+            ORDER BY created_at DESC
+            LIMIT $2 OFFSET $3
+            "#,
+            user_id,
+            limit,
+            offset
+        )
+        .fetch_all(&*self.pool)
+        .await
+    }
+
+    pub async fn get_email_count_by_user(&self, user_id: Uuid) -> Result<i64, sqlx::Error> {
+        let record = sqlx::query!(
+            "SELECT COUNT(*) as count FROM emails WHERE user_id = $1",
+            user_id
+        )
+        .fetch_one(&*self.pool)
+        .await?;
+        Ok(record.count.unwrap_or(0))
+    }
+
     pub async fn get_telemetry_for_user(
         &self,
         user_id: Uuid,

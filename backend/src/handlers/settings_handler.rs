@@ -6,8 +6,9 @@ use serde_json::json;
 
 use crate::{
     app_error::AppError,
+    middleware::rbac::AdminUser,
     models::settings_dto::{SettingsResponse, UpdateSettingsRequest, VerifySettingsRequest},
-    repositories::settings_repo::SettingsRepository,
+    repositories::{audit_repo::AuditRepository, settings_repo::SettingsRepository},
     state::AppState,
 };
 
@@ -25,6 +26,7 @@ use crate::{
 )]
 #[axum::debug_handler(state = AppState)]
 pub async fn get_settings_handler(
+    _admin: AdminUser,
     State(settings_repo): State<Arc<SettingsRepository>>,
 ) -> Result<impl IntoResponse, AppError> {
     let settings = settings_repo.get_settings().await?;
@@ -59,7 +61,9 @@ pub async fn get_settings_handler(
 )]
 #[axum::debug_handler(state = AppState)]
 pub async fn update_settings_handler(
+    admin: AdminUser,
     State(settings_repo): State<Arc<SettingsRepository>>,
+    State(audit_repo): State<Arc<AuditRepository>>,
     Json(request): Json<UpdateSettingsRequest>,
 ) -> Result<impl IntoResponse, AppError> {
     let settings = settings_repo
@@ -69,6 +73,12 @@ pub async fn update_settings_handler(
             request.llm_api_key.as_deref(),
         )
         .await?;
+
+    let _ = audit_repo.create_log(
+        Some(admin.0.id),
+        "update_settings",
+        Some(serde_json::json!({ "llm_base_url": settings.llm_base_url, "llm_model": settings.llm_model })),
+    ).await;
 
     let response = SettingsResponse {
         id: settings.id,
@@ -101,6 +111,7 @@ pub async fn update_settings_handler(
 )]
 #[axum::debug_handler(state = AppState)]
 pub async fn verify_settings_handler(
+    _admin: AdminUser,
     State(settings_repo): State<Arc<SettingsRepository>>,
     Json(request): Json<VerifySettingsRequest>,
 ) -> Result<impl IntoResponse, AppError> {

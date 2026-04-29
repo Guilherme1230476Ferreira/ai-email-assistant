@@ -21,6 +21,7 @@ use std::sync::Arc;
 #[openapi(
     paths(
         auth_handler::login_handler,
+        auth_handler::me_handler,
         admin_handler::create_user_handler,
         admin_handler::get_users_handler,
         admin_handler::update_user_role_handler,
@@ -29,6 +30,7 @@ use std::sync::Arc;
         role_handler::get_roles_handler,
         role_handler::delete_role_handler,
         email_handler::generate_email_handler,
+        email_handler::generate_email_stream_handler,
         email_handler::get_emails_handler,
         email_handler::get_telemetry_handler,
         settings_handler::get_settings_handler,
@@ -47,6 +49,7 @@ use std::sync::Arc;
         UpdateSettingsRequest,
         VerifySettingsRequest,
         crate::models::dto::TelemetryData,
+        crate::models::dto::UserResponse,
         AppError,
         Role,
         User,
@@ -87,12 +90,18 @@ pub async fn create_router(app_state: AppState) -> Router {
         .route("/health", get(health))
         .route(
             "/api/auth/login",
-            axum::routing::post(auth_handler::login_handler),
+            axum::routing::post(auth_handler::login_handler).route_layer(
+                axum::middleware::from_fn_with_state(
+                    app_state.clone(),
+                    crate::middleware::rate_limiter::rate_limit_middleware,
+                ),
+            ),
         )
         .route(
             "/api/auth/register",
             axum::routing::post(auth_handler::register_handler),
         )
+        .route("/api/auth/me", axum::routing::get(auth_handler::me_handler))
         .route("/api/auth/google", get(auth_handler::google_auth_handler))
         .route(
             "/api/auth/google/callback",
@@ -121,8 +130,16 @@ pub async fn create_router(app_state: AppState) -> Router {
             axum::routing::delete(role_handler::delete_role_handler),
         )
         .route(
+            "/api/admin/audit-logs",
+            axum::routing::get(admin_handler::get_audit_logs_handler),
+        )
+        .route(
             "/api/emails/generate",
             axum::routing::post(email_handler::generate_email_handler),
+        )
+        .route(
+            "/api/emails/generate/stream",
+            axum::routing::post(email_handler::generate_email_stream_handler),
         )
         .route(
             "/api/emails",

@@ -16,6 +16,7 @@ pub struct Role {
 pub struct User {
     pub id: Uuid,
     pub email: String,
+    #[serde(skip_serializing)]
     pub password_hash: String,
     pub role_id: Uuid,
     pub created_at: DateTime<Utc>,

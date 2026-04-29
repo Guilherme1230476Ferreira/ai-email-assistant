@@ -15,8 +15,8 @@ export const load: PageServerLoad = async ({ fetch, cookies }) => {
 		]);
 
 		const [emails, users, roles, settings, telemetry] = await Promise.all([
-			emailsRes.ok ? emailsRes.json() : [],
-			usersRes.ok ? usersRes.json() : [],
+			emailsRes.ok ? emailsRes.json() : { items: [], total: 0 },
+			usersRes.ok ? usersRes.json() : { items: [], total: 0 },
 			rolesRes.ok ? rolesRes.json() : [],
 			settingsRes.ok ? settingsRes.json() : null,
 			telemetryRes.ok ? telemetryRes.json() : null,
@@ -24,13 +24,13 @@ export const load: PageServerLoad = async ({ fetch, cookies }) => {
 
 		return {
 			stats: {
-				emailsCount: Array.isArray(emails) ? emails.length : 0,
-				usersCount: Array.isArray(users) ? users.length : 0,
+				emailsCount: emails.total !== undefined ? emails.total : (Array.isArray(emails) ? emails.length : 0),
+				usersCount: users.total !== undefined ? users.total : (Array.isArray(users) ? users.length : 0),
 				rolesCount: Array.isArray(roles) ? roles.length : 0,
 			},
 			telemetry,
 			llm: settings || null,
-			recentEmails: Array.isArray(emails) ? emails.slice(0, 4) : []
+			recentEmails: Array.isArray(emails.items) ? emails.items.slice(0, 4) : []
 		};
 	} catch (error) {
 		console.error("Error fetching dashboard data:", error);

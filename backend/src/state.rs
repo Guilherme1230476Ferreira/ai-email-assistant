@@ -6,8 +6,8 @@ use tokio::sync::RwLock;
 use crate::infrastructure::config::Config;
 use crate::infrastructure::crypto::CryptoService;
 use crate::repositories::{
-    email_repo::EmailRepository, role_repo::RoleRepository, settings_repo::SettingsRepository,
-    user_repo::UserRepository,
+    audit_repo::AuditRepository, email_repo::EmailRepository, role_repo::RoleRepository,
+    settings_repo::SettingsRepository, user_repo::UserRepository,
 };
 use crate::services::llm_service::{LlmService, UnifiedLlmService};
 use axum::extract::FromRef;
@@ -23,9 +23,13 @@ pub struct AppState {
     pub role_repo: Arc<RoleRepository>,
     pub email_repo: Arc<EmailRepository>,
     pub settings_repo: Arc<SettingsRepository>,
+    pub audit_repo: Arc<AuditRepository>,
     pub crypto_service: Arc<CryptoService>,
     pub llm_service: Arc<dyn LlmService + Send + Sync>,
     pub config: Arc<Config>,
+    pub rate_limiters: Arc<
+        tokio::sync::RwLock<std::collections::HashMap<std::net::IpAddr, Vec<std::time::Instant>>>,
+    >,
 }
 
 impl FromRef<AppState> for Arc<UserRepository> {
@@ -64,6 +68,12 @@ impl FromRef<AppState> for Arc<dyn LlmService + Send + Sync> {
     }
 }
 
+impl FromRef<AppState> for Arc<AuditRepository> {
+    fn from_ref(state: &AppState) -> Self {
+        state.audit_repo.clone()
+    }
+}
+
 impl FromRef<AppState> for Arc<Config> {
     fn from_ref(state: &AppState) -> Self {
         state.config.clone()
@@ -82,6 +92,7 @@ impl AppState {
         let user_repo = Arc::new(UserRepository::new(pool.clone()));
         let role_repo = Arc::new(RoleRepository::new(pool.clone()));
         let email_repo = Arc::new(EmailRepository::new(pool.clone()));
+        let audit_repo = Arc::new(AuditRepository::new((*pool).clone()));
 
         let crypto_service = Arc::new(CryptoService::new(Arc::new(config.clone()))?);
         let settings_repo = Arc::new(SettingsRepository::new(
@@ -96,9 +107,11 @@ impl AppState {
             role_repo,
             email_repo,
             settings_repo,
+            audit_repo,
             crypto_service,
             llm_service,
             config: Arc::new(config),
+            rate_limiters: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
         };
 
         Ok(app_state)

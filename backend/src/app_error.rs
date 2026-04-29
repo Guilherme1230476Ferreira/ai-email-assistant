@@ -19,6 +19,10 @@ impl AppError {
             message: message.into(),
         }
     }
+
+    pub fn message(&self) -> &str {
+        &self.message
+    }
 }
 
 impl IntoResponse for AppError {

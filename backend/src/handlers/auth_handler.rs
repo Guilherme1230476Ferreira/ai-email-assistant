@@ -17,7 +17,10 @@ use crate::{
     app_error::AppError,
     infrastructure::config::Config,
     middleware::auth::create_jwt,
-    models::dto::{CreateUserRequest, LoginRequest, LoginResponse},
+    models::{
+        domain::User,
+        dto::{CreateUserRequest, LoginRequest, LoginResponse},
+    },
     repositories::user_repo::UserRepository,
     state::AppState,
 };
@@ -274,7 +277,10 @@ pub async fn google_callback_handler(
     let token = create_jwt(user.id, &config)?;
 
     // We set the token in a cookie and redirect back to the home page securely
-    let cookie_str = format!("token={}; Path=/; Max-Age={}; SameSite=Lax", token, 86400);
+    let cookie_str = format!(
+        "token={}; Path=/; Max-Age={}; SameSite=Lax; HttpOnly",
+        token, 86400
+    );
 
     let redirect_url = if intent == "signup" {
         "http://localhost:5173/login?success=registered".to_string()
@@ -289,4 +295,24 @@ pub async fn google_callback_handler(
             (axum::http::header::LOCATION, redirect_url),
         ],
     ))
+}
+
+#[utoipa::path(
+    get,
+    path = "/api/auth/me",
+    responses(
+        (status = 200, description = "Returns the currently authenticated user", body = UserResponse),
+        (status = 401, description = "Unauthorized")
+    ),
+    security(
+        ("bearer_auth" = [])
+    ),
+    tag = "Auth"
+)]
+#[axum::debug_handler(state = AppState)]
+pub async fn me_handler(
+    auth_user: crate::middleware::auth::AuthUser,
+) -> Result<impl axum::response::IntoResponse, AppError> {
+    let response = crate::models::dto::UserResponse::from(auth_user.0);
+    Ok((axum::http::StatusCode::OK, axum::Json(response)))
 }
