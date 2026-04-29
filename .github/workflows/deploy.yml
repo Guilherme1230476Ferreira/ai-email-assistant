@@ -16,51 +16,51 @@ on:
   workflow_dispatch:
 
 # ── Deploy Job ────────────────────────────────────────────────────────────────
-# Runs directly on the self-hosted runner (vs224).
-# Builds natively — no Docker required.
+# Runs on the self-hosted runner (vs224), then SSHes to root@localhost
+# so all deploy commands run with full root privileges (required for systemctl).
 jobs:
   deploy:
-    name: Deploy to vs224 (native)
+    name: Deploy to vs224
     runs-on: self-hosted
 
     steps:
-      # ── Pull latest code ────────────────────────────────────────────────────
-      - name: Pull latest code
-        run: git -C /opt/ai-email-assistant pull origin main
+      - name: SSH into root and deploy
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: 127.0.0.1
+          port: 22
+          username: root
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          command_timeout: 20m
+          script: |
+            set -e
 
-      # ── Build Rust backend ──────────────────────────────────────────────────
-      - name: Build backend
-        working-directory: /opt/ai-email-assistant/backend
-        env:
-          SQLX_OFFLINE: "true"
-        run: cargo build --release
+            echo "==> Pulling latest code..."
+            cd /opt/ai-email-assistant
+            git pull origin main
 
-      # ── Build SvelteKit backoffice ──────────────────────────────────────────
-      - name: Build backoffice
-        working-directory: /opt/ai-email-assistant/backoffice
-        run: |
-          npm ci
-          npm run build
+            echo "==> Building Rust backend..."
+            cd /opt/ai-email-assistant/backend
+            export SQLX_OFFLINE=true
+            cargo build --release
 
-      # ── Reload Nginx config if changed ─────────────────────────────────────
-      - name: Reload Nginx
-        run: |
-          cp /opt/ai-email-assistant/nginx/nginx.conf \
-             /etc/nginx/sites-available/ai-email-assistant
-          nginx -t && systemctl reload nginx
+            echo "==> Building SvelteKit backoffice..."
+            cd /opt/ai-email-assistant/backoffice
+            npm ci
+            npm run build
 
-      # ── Restart services (zero-downtime: stop → new binary already built) ──
-      - name: Restart services
-        run: |
-          systemctl restart ai-backend
-          systemctl restart ai-backoffice
+            echo "==> Reloading Nginx config..."
+            cp /opt/ai-email-assistant/nginx/nginx.conf \
+               /etc/nginx/sites-available/ai-email-assistant
+            nginx -t && systemctl reload nginx
 
-      # ── Health check ────────────────────────────────────────────────────────
-      - name: Health check
-        run: |
-          sleep 5
-          systemctl is-active --quiet ai-backend   || { journalctl -u ai-backend -n 30; exit 1; }
-          systemctl is-active --quiet ai-backoffice || { journalctl -u ai-backoffice -n 30; exit 1; }
-          echo "✅ All services running."
-          systemctl status ai-backend   --no-pager
-          systemctl status ai-backoffice --no-pager
+            echo "==> Restarting services..."
+            systemctl restart ai-backend
+            systemctl restart ai-backoffice
+
+            echo "==> Health check..."
+            sleep 5
+            systemctl is-active --quiet ai-backend   || { journalctl -u ai-backend -n 20 --no-pager; exit 1; }
+            systemctl is-active --quiet ai-backoffice || { journalctl -u ai-backoffice -n 20 --no-pager; exit 1; }
+            echo "All services running."
+            systemctl status ai-backend ai-backoffice --no-pager
