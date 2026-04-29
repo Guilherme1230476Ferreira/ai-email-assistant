@@ -66,3 +66,105 @@ impl CryptoService {
         String::from_utf8(plaintext_bytes).map_err(|_| anyhow!("Invalid UTF-8 in plaintext"))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn get_test_crypto_service() -> CryptoService {
+        let mut config = Config::default();
+        config.encryption_key = "test_super_secret_encryption_key_that_is_long".to_string();
+        CryptoService::new(Arc::new(config)).unwrap()
+    }
+
+    #[test]
+    fn test_encrypt_decrypt_success() {
+        let service = get_test_crypto_service();
+        let plaintext = "secret_api_key_123";
+
+        let encrypted = service.encrypt(plaintext).expect("Encryption failed");
+
+        // Assert format (nonce:ciphertext)
+        let parts: Vec<&str> = encrypted.split(':').collect();
+        assert_eq!(
+            parts.len(),
+            2,
+            "Encrypted string should have two parts separated by a colon"
+        );
+
+        let decrypted = service.decrypt(&encrypted).expect("Decryption failed");
+        assert_eq!(
+            decrypted, plaintext,
+            "Decrypted text should match original plaintext"
+        );
+    }
+
+    #[test]
+    fn test_decrypt_invalid_format() {
+        let service = get_test_crypto_service();
+
+        let result = service.decrypt("invalidformatwithoutcolon");
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().to_string(), "Invalid encrypted format");
+    }
+
+    #[test]
+    fn test_decrypt_invalid_base64() {
+        let service = get_test_crypto_service();
+
+        let result = service.decrypt("invalid_base64!:invalid_base64!");
+        assert!(result.is_err());
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Invalid nonce base64")
+        );
+    }
+
+    #[test]
+    fn test_decrypt_invalid_nonce_length() {
+        let service = get_test_crypto_service();
+        let short_nonce = general_purpose::STANDARD.encode(b"short");
+        let fake_cipher = general_purpose::STANDARD.encode(b"ciphertext123");
+
+        let result = service.decrypt(&format!("{}:{}", short_nonce, fake_cipher));
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().to_string(), "Invalid nonce length");
+    }
+
+    #[test]
+    fn test_encryption_produces_unique_ciphertexts() {
+        let service = get_test_crypto_service();
+        let plaintext = "same_secret";
+
+        let enc1 = service.encrypt(plaintext).unwrap();
+        let enc2 = service.encrypt(plaintext).unwrap();
+
+        assert_ne!(
+            enc1, enc2,
+            "Encryption should use unique nonces, producing different ciphertexts"
+        );
+
+        // Both should decrypt to the same plaintext
+        assert_eq!(service.decrypt(&enc1).unwrap(), plaintext);
+        assert_eq!(service.decrypt(&enc2).unwrap(), plaintext);
+    }
+
+    #[test]
+    fn test_decrypt_with_wrong_key() {
+        let service1 = get_test_crypto_service();
+
+        let mut config2 = Config::default();
+        config2.encryption_key = "a_different_and_also_very_long_key_123".to_string();
+        let service2 = CryptoService::new(Arc::new(config2)).unwrap();
+
+        let plaintext = "secret_data";
+        let encrypted = service1.encrypt(plaintext).unwrap();
+
+        // Attempt to decrypt with service2 (wrong key)
+        let result = service2.decrypt(&encrypted);
+        assert!(result.is_err(), "Decryption with wrong key should fail");
+        assert!(result.unwrap_err().to_string().contains("Decryption error"));
+    }
+}

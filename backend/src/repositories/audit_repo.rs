@@ -94,3 +94,55 @@ impl AuditRepository {
         Ok(count.unwrap_or(0))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+    use std::sync::Arc;
+
+    #[sqlx::test]
+    async fn test_create_and_get_logs(pool: PgPool) {
+        let repo = AuditRepository::new(pool.clone());
+
+        let user_id = Uuid::new_v4(); // Doesn't matter if it doesn't exist since ON DELETE SET NULL implies it can be null but wait! user_id REFERENCES users(id). If it's a hard FK, we might need a real user or we can use NULL. Wait, if we use a random Uuid, it will violate FK constraint.
+        // Let's test with None for user_id to avoid creating a user.
+
+        let log = repo
+            .create_log(None, "test_action", Some(json!({"key": "value"})))
+            .await
+            .unwrap();
+        assert_eq!(log.action, "test_action");
+        assert_eq!(
+            log.metadata.unwrap().get("key").unwrap().as_str().unwrap(),
+            "value"
+        );
+
+        let logs = repo.get_logs_paginated(1, 10).await.unwrap();
+        assert!(logs.len() >= 1);
+
+        let count = repo.get_logs_count().await.unwrap();
+        assert!(count >= 1);
+    }
+
+    #[sqlx::test]
+    async fn test_create_log_with_user(pool: PgPool) {
+        let repo = AuditRepository::new(pool.clone());
+        let user_repo = crate::repositories::user_repo::UserRepository::new(Arc::new(pool));
+
+        let user = user_repo
+            .create_user(&crate::models::dto::CreateUserRequest {
+                email: "audit_user@example.com".to_string(),
+                password: "Password123!".to_string(),
+            })
+            .await
+            .unwrap();
+
+        let log = repo
+            .create_log(Some(user.id), "user_action", None)
+            .await
+            .unwrap();
+        assert_eq!(log.user_id, Some(user.id));
+        assert_eq!(log.action, "user_action");
+    }
+}

@@ -109,6 +109,33 @@ impl EmailRepository {
         Ok(record.count.unwrap_or(0))
     }
 
+    pub async fn get_emails_paginated(
+        &self,
+        offset: i64,
+        limit: i64,
+    ) -> Result<Vec<Email>, sqlx::Error> {
+        sqlx::query_as!(
+            Email,
+            r#"
+            SELECT id, user_id, original_content, generated_response, created_at, updated_at
+            FROM emails
+            ORDER BY created_at DESC
+            LIMIT $1 OFFSET $2
+            "#,
+            limit,
+            offset
+        )
+        .fetch_all(&*self.pool)
+        .await
+    }
+
+    pub async fn get_email_count(&self) -> Result<i64, sqlx::Error> {
+        let record = sqlx::query!("SELECT COUNT(*) as count FROM emails")
+            .fetch_one(&*self.pool)
+            .await?;
+        Ok(record.count.unwrap_or(0))
+    }
+
     pub async fn get_telemetry_for_user(
         &self,
         user_id: Uuid,
@@ -179,5 +206,89 @@ impl EmailRepository {
         .await?;
 
         Ok(emails)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::dto::CreateUserRequest;
+    use crate::repositories::user_repo::UserRepository;
+
+    async fn setup_user(pool: &PgPool) -> User {
+        let repo = UserRepository::new(Arc::new(pool.clone()));
+        repo.create_user(&CreateUserRequest {
+            email: format!("test_{}@example.com", Uuid::new_v4()),
+            password: "Password123!".to_string(),
+        })
+        .await
+        .unwrap()
+    }
+
+    #[sqlx::test]
+    async fn test_create_email_and_get_paginated(pool: PgPool) {
+        let user = setup_user(&pool).await;
+        let repo = EmailRepository::new(Arc::new(pool));
+
+        // No embeddings
+        let email1 = repo
+            .create_email(
+                user.id,
+                "Hello, please refund my ticket.",
+                "Sure, refund processed.",
+                None,
+                None,
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(email1.original_content, "Hello, please refund my ticket.");
+        assert_eq!(email1.user_id, user.id);
+
+        // With embeddings
+        let embedding = Vector::from(vec![0.1, 0.2, 0.3]);
+        let email2 = repo
+            .create_email(
+                user.id,
+                "Where is my order?",
+                "It is shipped.",
+                Some(embedding.clone()),
+                Some(embedding.clone()),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(email2.original_content, "Where is my order?");
+
+        // Test pagination
+        let emails = repo.get_emails_paginated(0, 10).await.unwrap();
+        assert!(emails.len() >= 2);
+
+        let count = repo.get_email_count().await.unwrap();
+        assert!(count >= 2);
+    }
+
+    #[sqlx::test]
+    async fn test_get_user_history(pool: PgPool) {
+        let user1 = setup_user(&pool).await;
+        let user2 = setup_user(&pool).await;
+        let repo = EmailRepository::new(Arc::new(pool));
+
+        repo.create_email(user1.id, "User 1 mail", "Reply 1", None, None)
+            .await
+            .unwrap();
+        repo.create_email(user2.id, "User 2 mail", "Reply 2", None, None)
+            .await
+            .unwrap();
+
+        let history1 = repo
+            .get_emails_by_user_paginated(user1.id, 0, 10)
+            .await
+            .unwrap();
+        assert_eq!(history1.len(), 1);
+        assert_eq!(history1[0].original_content, "User 1 mail");
+
+        let count1 = repo.get_email_count_by_user(user1.id).await.unwrap();
+        assert_eq!(count1, 1);
     }
 }

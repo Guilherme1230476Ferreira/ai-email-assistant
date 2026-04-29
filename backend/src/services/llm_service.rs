@@ -287,3 +287,23 @@ impl LlmService for UnifiedLlmService {
         Ok(Box::pin(token_stream))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_build_system_prompt_empty_context() {
+        let prompt = UnifiedLlmService::build_system_prompt("");
+        assert!(prompt.contains("professional and helpful AI email assistant"));
+        assert!(prompt.contains("Draft a polite, concise"));
+    }
+
+    #[test]
+    fn test_build_system_prompt_with_context() {
+        let context = "Past reply: 'Hi, I can help with that.'";
+        let prompt = UnifiedLlmService::build_system_prompt(context);
+        assert!(prompt.contains("learn from the user's past email replies"));
+        assert!(prompt.contains(context));
+    }
+}

@@ -170,3 +170,78 @@ pub struct PaginatedResponse<T: Serialize> {
     pub page: i64,
     pub limit: i64,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::domain::User;
+    use chrono::Utc;
+    use uuid::Uuid;
+
+    #[test]
+    fn test_user_response_from_user_strips_password() {
+        let user_id = Uuid::new_v4();
+        let role_id = Uuid::new_v4();
+        let now = Utc::now();
+
+        let user = User {
+            id: user_id,
+            email: "test@example.com".to_string(),
+            role_id,
+            password_hash: "hashed_secret_password_that_must_never_leak".to_string(),
+            created_at: now,
+        };
+
+        let response = UserResponse::from(user);
+
+        assert_eq!(response.id, user_id);
+        assert_eq!(response.email, "test@example.com");
+        assert_eq!(response.role_id, role_id);
+        assert_eq!(response.created_at, now);
+
+        let serialized = serde_json::to_value(response).unwrap();
+        assert!(
+            serialized.get("password_hash").is_none(),
+            "password_hash must be absent from serialized JSON"
+        );
+    }
+
+    #[test]
+    fn test_pagination_params_defaults() {
+        let empty = PaginationParams {
+            page: None,
+            limit: None,
+        };
+        assert_eq!(empty.page_num(), 1);
+        assert_eq!(empty.per_page(), 20);
+        let (offset, limit) = empty.offset_limit();
+        assert_eq!(offset, 0);
+        assert_eq!(limit, 20);
+    }
+
+    #[test]
+    fn test_pagination_params_custom() {
+        let params = PaginationParams {
+            page: Some(3),
+            limit: Some(50),
+        };
+        assert_eq!(params.page_num(), 3);
+        assert_eq!(params.per_page(), 50);
+        let (offset, limit) = params.offset_limit();
+        assert_eq!(offset, 100);
+        assert_eq!(limit, 50);
+    }
+
+    #[test]
+    fn test_pagination_params_limits() {
+        let params = PaginationParams {
+            page: Some(-5),
+            limit: Some(500),
+        };
+        assert_eq!(params.page_num(), 1); // Capped by max(1)
+        assert_eq!(params.per_page(), 100); // Capped by min(100)
+        let (offset, limit) = params.offset_limit();
+        assert_eq!(offset, 0);
+        assert_eq!(limit, 100);
+    }
+}

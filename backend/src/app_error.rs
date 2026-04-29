@@ -20,6 +20,10 @@ impl AppError {
         }
     }
 
+    pub fn code(&self) -> StatusCode {
+        self.code
+    }
+
     pub fn message(&self) -> &str {
         &self.message
     }
@@ -40,5 +44,25 @@ impl From<sqlx::Error> for AppError {
             StatusCode::INTERNAL_SERVER_ERROR,
             "An unexpected database error occurred",
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_app_error_new() {
+        let err = AppError::new(StatusCode::BAD_REQUEST, "Invalid input");
+        assert_eq!(err.code(), StatusCode::BAD_REQUEST);
+        assert_eq!(err.message(), "Invalid input");
+    }
+
+    #[test]
+    fn test_app_error_from_sqlx() {
+        let sqlx_err = sqlx::Error::RowNotFound;
+        let app_err = AppError::from(sqlx_err);
+        assert_eq!(app_err.code(), StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(app_err.message(), "An unexpected database error occurred");
     }
 }

@@ -134,3 +134,118 @@ impl UserRepository {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[sqlx::test]
+    async fn test_create_user_success(pool: PgPool) {
+        let repo = UserRepository::new(Arc::new(pool));
+
+        let request = CreateUserRequest {
+            email: "test_create@example.com".to_string(),
+            password: "Password123!".to_string(),
+        };
+
+        let user = repo
+            .create_user(&request)
+            .await
+            .expect("Failed to create user");
+        assert_eq!(user.email, "test_create@example.com");
+
+        // Assert password was hashed, not stored in plaintext
+        assert_ne!(user.password_hash, "Password123!");
+    }
+
+    #[sqlx::test]
+    async fn test_create_user_duplicate_email(pool: PgPool) {
+        let repo = UserRepository::new(Arc::new(pool));
+        let request = CreateUserRequest {
+            email: "duplicate@example.com".to_string(),
+            password: "Password123!".to_string(),
+        };
+
+        // First creation should succeed
+        repo.create_user(&request).await.unwrap();
+
+        // Second creation should fail with CONFLICT
+        let err = repo
+            .create_user(&request)
+            .await
+            .expect_err("Expected error on duplicate email");
+        assert_eq!(err.code(), StatusCode::CONFLICT);
+        assert_eq!(err.message(), "User with this email already exists");
+    }
+
+    #[sqlx::test]
+    async fn test_get_user_by_email(pool: PgPool) {
+        let repo = UserRepository::new(Arc::new(pool));
+
+        let request = CreateUserRequest {
+            email: "get_by_email@example.com".to_string(),
+            password: "Password123!".to_string(),
+        };
+        repo.create_user(&request).await.unwrap();
+
+        let user = repo
+            .get_user_by_email("get_by_email@example.com")
+            .await
+            .expect("User should exist");
+        assert_eq!(user.email, "get_by_email@example.com");
+
+        let no_user_err = repo
+            .get_user_by_email("doesnotexist@example.com")
+            .await
+            .expect_err("User should not exist");
+        assert_eq!(no_user_err.code(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[sqlx::test]
+    async fn test_update_user_role(pool: PgPool) {
+        let repo = UserRepository::new(Arc::new(pool));
+        let request = CreateUserRequest {
+            email: "update_role@example.com".to_string(),
+            password: "Password123!".to_string(),
+        };
+        let user = repo.create_user(&request).await.unwrap();
+
+        // Fetch admin role id to update to
+        let admin_role = sqlx::query!("SELECT id FROM roles WHERE name = 'admin'")
+            .fetch_one(&*repo.pool)
+            .await
+            .unwrap();
+
+        assert_ne!(user.role_id, admin_role.id);
+
+        let updated = repo.update_user_role(user.id, admin_role.id).await.unwrap();
+        assert_eq!(updated.role_id, admin_role.id);
+    }
+
+    #[sqlx::test]
+    async fn test_delete_user(pool: PgPool) {
+        let repo = UserRepository::new(Arc::new(pool));
+        let request = CreateUserRequest {
+            email: "delete_me@example.com".to_string(),
+            password: "Password123!".to_string(),
+        };
+        let user = repo.create_user(&request).await.unwrap();
+
+        repo.delete_user(user.id)
+            .await
+            .expect("Failed to delete user");
+
+        let deleted_err = repo
+            .get_user_by_email("delete_me@example.com")
+            .await
+            .expect_err("User should be deleted");
+        assert_eq!(deleted_err.code(), StatusCode::UNAUTHORIZED);
+
+        // Deleting non-existent should return NOT_FOUND
+        let err = repo
+            .delete_user(Uuid::new_v4())
+            .await
+            .expect_err("Expected NOT_FOUND");
+        assert_eq!(err.code(), StatusCode::NOT_FOUND);
+    }
+}

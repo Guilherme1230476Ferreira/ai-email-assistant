@@ -3,8 +3,9 @@ use std::env;
 use anyhow::{Context, Result, anyhow};
 use serde::Deserialize;
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Default)]
 pub enum LlmProviderName {
+    #[default]
     OpenAI,
     Gemini,
 }
@@ -101,5 +102,24 @@ impl Config {
             embedding_api_key,
             embedding_model,
         })
+    }
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            database_url: "postgres://localhost/test".to_string(),
+            jwt_secret: "test_secret".to_string(),
+            jwt_expiration_hours: 24,
+            encryption_key: "00000000000000000000000000000000".to_string(),
+            llm_api_key: "".to_string(),
+            llm_provider_name: LlmProviderName::OpenAI,
+            port: 3000,
+            embedding_api_url: "http://localhost".to_string(),
+            embedding_api_key: "".to_string(),
+            embedding_model: "test-model".to_string(),
+            google_client_id: None,
+            google_client_secret: None,
+        }
     }
 }

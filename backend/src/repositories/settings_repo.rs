@@ -106,3 +106,52 @@ impl SettingsRepository {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::infrastructure::config::Config;
+
+    fn get_crypto() -> CryptoService {
+        let mut config = Config::default();
+        config.encryption_key = "test_super_secret_encryption_key_that_is_long".to_string();
+        CryptoService::new(Arc::new(config)).unwrap()
+    }
+
+    #[sqlx::test]
+    async fn test_get_settings_default(pool: PgPool) {
+        let repo = SettingsRepository::new(Arc::new(pool), get_crypto());
+
+        let settings = repo.get_settings().await.unwrap();
+        assert_eq!(settings.id, "singleton");
+        // Our migration ensures llm_base_url is populated.
+        assert!(!settings.llm_base_url.is_empty());
+    }
+
+    #[sqlx::test]
+    async fn test_update_settings(pool: PgPool) {
+        let repo = SettingsRepository::new(Arc::new(pool), get_crypto());
+
+        // Update without API key
+        let settings = repo
+            .update_settings("http://new.url", "new-model", None)
+            .await
+            .unwrap();
+        assert_eq!(settings.llm_base_url, "http://new.url");
+        assert_eq!(settings.llm_model, "new-model");
+
+        // Update with API key
+        repo.update_settings("http://new.url", "new-model", Some("secret_key_123"))
+            .await
+            .unwrap();
+        let decrypted = repo.get_decrypted_api_key().await.unwrap().unwrap();
+        assert_eq!(decrypted, "secret_key_123");
+
+        // Update with masked placeholder should not override
+        repo.update_settings("http://new.url", "new-model", Some("sk-...****"))
+            .await
+            .unwrap();
+        let decrypted = repo.get_decrypted_api_key().await.unwrap().unwrap();
+        assert_eq!(decrypted, "secret_key_123"); // Remains unchanged
+    }
+}
