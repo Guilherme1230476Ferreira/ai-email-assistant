@@ -24,15 +24,17 @@ jobs:
     runs-on: self-hosted
 
     steps:
-      - name: SSH into root and deploy
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: 127.0.0.1
-          port: 22
-          username: root
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
-          command_timeout: 20m
-          script: |
+      - name: SSH into root and deploy natively
+        env:
+          SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          # Save the SSH key securely
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+          # Connect to localhost as root and execute the deployment commands
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no root@127.0.0.1 << 'EOF'
             set -e
 
             echo "==> Pulling latest code..."
@@ -62,5 +64,6 @@ jobs:
             sleep 5
             systemctl is-active --quiet ai-backend   || { journalctl -u ai-backend -n 20 --no-pager; exit 1; }
             systemctl is-active --quiet ai-backoffice || { journalctl -u ai-backoffice -n 20 --no-pager; exit 1; }
-            echo "All services running."
+            echo "✅ All services running."
             systemctl status ai-backend ai-backoffice --no-pager
+          EOF
