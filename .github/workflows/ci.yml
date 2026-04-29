@@ -82,3 +82,12 @@ jobs:
 
       - name: Build backoffice
         run: npm run build
+
+      - name: Run unit tests
+        run: npm run test:unit
+
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps
+
+      - name: Run E2E tests
+        run: npm run test:e2e
