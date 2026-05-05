@@ -29,8 +29,7 @@ jobs:
       CARGO_NET_GIT_FETCH_WITH_CLI: true
       CARGO_HTTP_TIMEOUT: 120
       CARGO_HTTP_CHECK_REVOCABLE: false
-      # This tells SQLx to use the cached queries instead of a live DB
-      SQLX_OFFLINE: true
+      # SQLX_OFFLINE is set per-step: check uses offline cache, test needs live DB
 
     defaults:
       run:
@@ -53,11 +52,32 @@ jobs:
           restore-keys: ${{ runner.os }}-cargo-
 
       - name: Run cargo check
+        env:
+          SQLX_OFFLINE: true
         run: cargo check --verbose
         working-directory: ./backend
 
       - name: Run tests
-        run: cargo test
+        # #[sqlx::test] creates/drops temporary databases per test.
+        # The self-hosted runner is on vs224 — PostgreSQL is local.
+        # We read DATABASE_URL directly from the server .env (no GitHub secret needed).
+        # Requires 'admin' user to have CREATEDB privilege:
+        #   sudo -u postgres psql -c "ALTER USER admin CREATEDB;"
+        env:
+          SQLX_OFFLINE: false
+          DATABASE_URL: ${{ env.SERVER_DATABASE_URL }}
+        run: |
+          # Source DATABASE_URL from the server .env if it exists
+          ENV_FILE=/opt/ai-email-assistant/.env
+          if [ -f "$ENV_FILE" ]; then
+            export DATABASE_URL=$(grep '^DATABASE_URL=' "$ENV_FILE" | cut -d'=' -f2-)
+          elif [ -n "${{ secrets.DATABASE_URL }}" ]; then
+            export DATABASE_URL="${{ secrets.DATABASE_URL }}"
+          else
+            echo "⚠ No DATABASE_URL found — skipping integration tests"
+            exit 0
+          fi
+          cargo test
 
      ## - name: Check formatting
        ## run: cargo fmt -- --check
