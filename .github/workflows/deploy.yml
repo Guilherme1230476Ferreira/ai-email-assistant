@@ -77,26 +77,10 @@ jobs:
               exit 1
             fi
 
-            # ── PostgreSQL health check ───────────────────────────────────
-            echo "==> [0/7] Checking database health..."
-            source <(grep -E '^(POSTGRES_USER|POSTGRES_PASSWORD|POSTGRES_DB|DATABASE_URL)' "\$ENV_FILE")
-            export POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB DATABASE_URL
-
-            if ! systemctl is-active --quiet postgresql; then
-              echo "❌ PostgreSQL is NOT running. Starting it..."
-              systemctl start postgresql
-              sleep 3
-            fi
-
-            if PGPASSWORD="\$POSTGRES_PASSWORD" psql -h 127.0.0.1 -U "\$POSTGRES_USER" -d "\$POSTGRES_DB" -c "SELECT 1;" &>/dev/null; then
-              echo "    ✅ Database '\${POSTGRES_DB}' is reachable"
-            else
-              echo "❌ Cannot connect to database. Check PostgreSQL setup:"
-              echo "   sudo -u postgres psql -c \"CREATE USER admin WITH PASSWORD 'admin' SUPERUSER CREATEDB;\""
-              echo "   sudo -u postgres psql -c \"CREATE DATABASE ai_email_assistant OWNER admin;\""
-              echo "   Run migrations: ls \$REPO/backend/migrations/*.sql | sort | xargs -I{} psql -h 127.0.0.1 -U admin -d ai_email_assistant -f {}"
-              exit 1
-            fi
+            # ── PostgreSQL bootstrap ───────────────────────────────────────
+            echo "==> [0/7] Ensuring database is up and healthy..."
+            bash \$REPO/deploy/db-bootstrap.sh
+            echo "    ✅ Database ready."
 
             # ── 1. Pull latest code ──────────────────────────────────────
             echo "==> [1/7] Pulling latest code..."
