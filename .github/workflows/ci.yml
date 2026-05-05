@@ -20,8 +20,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # ── Rust Backend ────────────────────────────────────────────────────────────
   build-and-test:
-    name: Build & Test
+    name: Build & Test (Backend)
     runs-on: self-hosted
 
     env:
@@ -29,7 +30,6 @@ jobs:
       CARGO_NET_GIT_FETCH_WITH_CLI: true
       CARGO_HTTP_TIMEOUT: 120
       CARGO_HTTP_CHECK_REVOCABLE: false
-      # SQLX_OFFLINE is set per-step: check uses offline cache, test needs live DB
 
     defaults:
       run:
@@ -51,39 +51,45 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('backend/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-
 
-      - name: Run cargo check
+      # cargo check uses the .sqlx offline cache — no DB needed
+      - name: Cargo check (offline)
         env:
           SQLX_OFFLINE: true
         run: cargo check --verbose
         working-directory: ./backend
 
-      - name: Run tests
-        # #[sqlx::test] creates/drops temporary databases per test.
-        # The self-hosted runner is on vs224 — PostgreSQL is local.
-        # We read DATABASE_URL directly from the server .env (no GitHub secret needed).
-        # Requires 'admin' user to have CREATEDB privilege:
-        #   sudo -u postgres psql -c "ALTER USER admin CREATEDB;"
-        env:
-          SQLX_OFFLINE: false
-          DATABASE_URL: ${{ env.SERVER_DATABASE_URL }}
+      # cargo test uses #[sqlx::test] which needs a live PostgreSQL connection.
+      # The self-hosted runner is on vs224 alongside PostgreSQL.
+      # Pre-requisite on server (one-time):
+      #   sudo -u postgres psql -c "ALTER USER admin WITH SUPERUSER CREATEDB;"
+      - name: Check database is reachable
         run: |
-          # Source DATABASE_URL from the server .env if it exists
           ENV_FILE=/opt/ai-email-assistant/.env
-          if [ -f "$ENV_FILE" ]; then
-            export DATABASE_URL=$(grep '^DATABASE_URL=' "$ENV_FILE" | cut -d'=' -f2-)
-          elif [ -n "${{ secrets.DATABASE_URL }}" ]; then
-            export DATABASE_URL="${{ secrets.DATABASE_URL }}"
-          else
-            echo "⚠ No DATABASE_URL found — skipping integration tests"
+          if [ ! -f "$ENV_FILE" ]; then
+            echo "❌ No .env file found at $ENV_FILE — skipping DB tests"
+            echo "DB_AVAILABLE=false" >> $GITHUB_ENV
             exit 0
           fi
+          DB_URL=$(grep '^DATABASE_URL=' "$ENV_FILE" | cut -d'=' -f2-)
+          if psql "$DB_URL" -c "SELECT 1;" &>/dev/null; then
+            echo "✅ Database is reachable"
+            echo "DB_AVAILABLE=true" >> $GITHUB_ENV
+          else
+            echo "⚠ Database unreachable — DB tests will be skipped"
+            echo "DB_AVAILABLE=false" >> $GITHUB_ENV
+          fi
+
+      - name: Run tests
+        if: env.DB_AVAILABLE == 'true'
+        env:
+          SQLX_OFFLINE: false
+        run: |
+          export DATABASE_URL=$(grep '^DATABASE_URL=' /opt/ai-email-assistant/.env | cut -d'=' -f2-)
           cargo test
 
-     ## - name: Check formatting
-       ## run: cargo fmt -- --check
-
+  # ── SvelteKit Backoffice ────────────────────────────────────────────────────
   backoffice-build:
-    name: Build Backoffice
+    name: Build & Test (Backoffice)
     runs-on: self-hosted
     defaults:
       run:
@@ -100,6 +106,9 @@ jobs:
           cache-dependency-path: 'backoffice/package-lock.json'
 
       - name: Install dependencies
+        # PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: the VM cannot reach cdn.playwright.dev
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
         run: npm ci
 
       - name: Run SvelteKit check
@@ -111,9 +120,6 @@ jobs:
       - name: Run unit tests
         run: npm run test:unit
 
-      - name: Install Playwright Browsers
-        run: npx playwright install
-
-      - name: Run E2E tests
-        run: npm run test:e2e
-        continue-on-error: true
+      # E2E tests are skipped in CI — the VM has no external network access
+      # to download browsers, and E2E requires a running backend + DB.
+      # Run E2E tests locally: npm run test:e2e

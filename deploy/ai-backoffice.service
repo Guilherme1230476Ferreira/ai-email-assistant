@@ -9,25 +9,15 @@ Type=simple
 User=root
 WorkingDirectory=/opt/ai-email-assistant/backoffice
 
-# Load shared env (contains DB, API keys, etc.)
+# Load shared env (DB, API keys, etc.)
 EnvironmentFile=/opt/ai-email-assistant/.env
 
-# Override PORT — use shell wrapper so PORT=3001 wins over EnvironmentFile's PORT=3000
+# Use shell exec wrapper: PORT=3001 wins over EnvironmentFile's PORT=3000
+# CSRF is disabled via svelte.config.js (csrf: { checkOrigin: false })
 Environment=BACKEND_URL=http://127.0.0.1:3000
-
-# CSRF / ORIGIN:
-# SvelteKit checks the Origin header against ORIGIN on every form POST.
-# This server is accessed through the ISEP gateway which can rewrite the
-# port/host, making exact ORIGIN matching unreliable.
-# CSRF_CHECK_ORIGIN=false is safe here because:
-#   1. Nginx is the ONLY entry point — no direct port 3001 exposure
-#   2. The Rust backend enforces JWT auth on all state-changing endpoints
-#   3. The SvelteKit server actions (login/logout) are minimal scope
-Environment=CSRF_CHECK_ORIGIN=false
 
 ExecStart=/bin/sh -c 'exec env PORT=3001 HOST=0.0.0.0 /usr/bin/node /opt/ai-email-assistant/backoffice/build/index.js'
 
-# Restart automatically on crash
 Restart=always
 RestartSec=5
 StandardOutput=journal
