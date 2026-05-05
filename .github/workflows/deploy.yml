@@ -20,6 +20,10 @@ concurrency:
   group: deploy-vs224
   cancel-in-progress: false
 
+# Ensure github.token can read the private repo (needed for git fetch)
+permissions:
+  contents: read
+
 # ── Deploy Job ────────────────────────────────────────────────────────────────
 # Runs on the self-hosted runner (vs224) as user 'ghrunner', then
 # SSHes to root@localhost for privileged operations (systemctl, cp to /etc).
@@ -76,8 +80,12 @@ jobs:
             # ── 1. Pull latest code ──────────────────────────────────────
             echo "==> [1/7] Pulling latest code..."
             cd \$REPO
+            # Temporarily set remote URL with token for private repo auth
+            git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/Guilherme1230476Ferreira/ai-email-assistant.git
             git fetch --all --prune
             git reset --hard origin/main
+            # Remove token from persisted remote URL
+            git remote set-url origin https://github.com/Guilherme1230476Ferreira/ai-email-assistant.git
 
             # ── 2. Run database migrations ───────────────────────────────
             echo "==> [2/7] Running database migrations..."

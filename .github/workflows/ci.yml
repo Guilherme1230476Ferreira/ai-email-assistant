@@ -14,6 +14,11 @@ on:
       - backoffice/**
       - .github/workflows/ci.yml
 
+# Prevent multiple CI runs from clashing on the same runner
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-and-test:
     name: Build & Test
