@@ -25,6 +25,10 @@ pub struct Config {
     pub embedding_model: String,
     pub google_client_id: Option<String>,
     pub google_client_secret: Option<String>,
+    /// The public-facing URL where users access the app (e.g. http://vs224.dei.isep.ipp.pt:2224).
+    /// Used for OAuth redirect URIs and post-login redirects.
+    /// Defaults to http://localhost:5173 for local development.
+    pub public_url: String,
 }
 
 impl Config {
@@ -88,6 +92,11 @@ impl Config {
         let google_client_id = env::var("GOOGLE_CLIENT_ID").ok();
         let google_client_secret = env::var("GOOGLE_CLIENT_SECRET").ok();
 
+        let public_url = env::var("PUBLIC_URL")
+            .unwrap_or_else(|_| "http://localhost:5173".to_string())
+            .trim_end_matches('/')
+            .to_string();
+
         Ok(Self {
             database_url,
             jwt_secret,
@@ -101,6 +110,7 @@ impl Config {
             embedding_api_url,
             embedding_api_key,
             embedding_model,
+            public_url,
         })
     }
 }
@@ -120,6 +130,7 @@ impl Default for Config {
             embedding_model: "test-model".to_string(),
             google_client_id: None,
             google_client_secret: None,
+            public_url: "http://localhost:5173".to_string(),
         }
     }
 }

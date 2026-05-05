@@ -120,6 +120,8 @@ fn get_google_client(config: &Config) -> Result<BasicClient, AppError> {
             )
         })?;
 
+    let redirect_url = format!("{}/api/auth/google/callback", config.public_url);
+
     Ok(BasicClient::new(
         ClientId::new(client_id),
         Some(ClientSecret::new(client_secret)),
@@ -127,7 +129,7 @@ fn get_google_client(config: &Config) -> Result<BasicClient, AppError> {
         Some(token_url),
     )
     .set_redirect_uri(
-        RedirectUrl::new("http://localhost:5173/api/auth/google/callback".to_string()).map_err(
+        RedirectUrl::new(redirect_url).map_err(
             |_| {
                 AppError::new(
                     StatusCode::INTERNAL_SERVER_ERROR,
@@ -231,7 +233,7 @@ pub async fn google_callback_handler(
                 ),
                 (
                     axum::http::header::LOCATION,
-                    "http://localhost:5173/login?error=not_registered".to_string(),
+                    format!("{}/login?error=not_registered", config.public_url),
                 ),
             ],
         ));
@@ -249,7 +251,7 @@ pub async fn google_callback_handler(
                         ),
                         (
                             axum::http::header::LOCATION,
-                            "http://localhost:5173/signup?error=already_registered".to_string(),
+                            format!("{}/signup?error=already_registered", config.public_url),
                         ),
                     ],
                 ));
@@ -275,9 +277,9 @@ pub async fn google_callback_handler(
     );
 
     let redirect_url = if intent == "signup" {
-        "http://localhost:5173/login?success=registered".to_string()
+        format!("{}/login?success=registered", config.public_url)
     } else {
-        "http://localhost:5173/".to_string()
+        format!("{}/", config.public_url)
     };
 
     Ok((
