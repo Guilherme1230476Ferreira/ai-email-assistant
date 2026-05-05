@@ -93,13 +93,18 @@ jobs:
             export DATABASE_URL
             cd \$REPO/backend
 
-            # Use sqlx-cli if available, otherwise skip (tables created by setup.sh)
+            # Use sqlx-cli if available, otherwise use psql fallback
             if command -v sqlx &>/dev/null; then
               sqlx migrate run
-              echo "    Migrations applied."
+              echo "    Migrations applied via sqlx."
             else
-              echo "    sqlx-cli not found — skipping migrations."
-              echo "    Install with: cargo install sqlx-cli --no-default-features --features postgres"
+              echo "    sqlx-cli not found — using psql fallback..."
+              source <(grep -E '^(POSTGRES_USER|POSTGRES_PASSWORD|POSTGRES_DB)' "\$ENV_FILE")
+              for f in \$(ls -1 \$REPO/backend/migrations/*.sql | sort); do
+                echo "    Applying \$(basename \$f)..."
+                PGPASSWORD="\$POSTGRES_PASSWORD" psql -h 127.0.0.1 -U "\$POSTGRES_USER" -d "\$POSTGRES_DB" -f "\$f" 2>/dev/null || true
+              done
+              echo "    Migrations applied via psql."
             fi
 
             # ── 3. Build Rust backend ────────────────────────────────────

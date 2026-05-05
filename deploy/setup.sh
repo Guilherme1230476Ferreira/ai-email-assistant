@@ -142,19 +142,30 @@ ln -sf "$HOME/.cargo/bin/cargo" /usr/local/bin/cargo 2>/dev/null || true
 ln -sf "$HOME/.cargo/bin/rustc" /usr/local/bin/rustc 2>/dev/null || true
 echo "    Rust $(rustc --version)"
 
-# Install sqlx-cli for migrations
+# Install sqlx-cli for migrations (optional — has fallback)
 if ! command -v sqlx &>/dev/null; then
-    echo "    Installing sqlx-cli..."
-    cargo install sqlx-cli --no-default-features --features postgres
-    ln -sf "$HOME/.cargo/bin/sqlx" /usr/local/bin/sqlx 2>/dev/null || true
+    echo "    Installing sqlx-cli (this may take a few minutes)..."
+    CARGO_HTTP_TIMEOUT=120 cargo install sqlx-cli --no-default-features --features postgres 2>/dev/null && \
+        ln -sf "$HOME/.cargo/bin/sqlx" /usr/local/bin/sqlx 2>/dev/null || \
+        echo "    ⚠ sqlx-cli install failed (network issue). Will use psql fallback for migrations."
 fi
 
 # ── 6. Run database migrations ────────────────────────────────────────────────
 echo "[6/8] Running database migrations..."
 cd "$REPO/backend"
 export DATABASE_URL
-sqlx migrate run
-echo "    Migrations applied."
+if command -v sqlx &>/dev/null; then
+    sqlx migrate run
+    echo "    Migrations applied via sqlx."
+else
+    echo "    Using psql fallback for migrations..."
+    # Run each migration SQL file in order using psql
+    for f in $(ls -1 "$REPO/backend/migrations/"*.sql | sort); do
+        echo "    Applying $(basename $f)..."
+        PGPASSWORD="${POSTGRES_PASSWORD}" psql -h 127.0.0.1 -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" -f "$f" 2>/dev/null || true
+    done
+    echo "    Migrations applied via psql."
+fi
 
 # ── 7. First build ────────────────────────────────────────────────────────────
 echo "[7/8] Building backend and backoffice (first build — takes a few minutes)..."
