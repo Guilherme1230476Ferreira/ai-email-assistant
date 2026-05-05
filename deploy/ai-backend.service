@@ -2,6 +2,7 @@
 Description=AI Email Assistant — Rust/Axum Backend
 Documentation=https://github.com/Guilherme1230476Ferreira/ai-email-assistant
 After=network.target postgresql.service
+Wants=postgresql.service
 
 [Service]
 Type=simple
@@ -10,6 +11,10 @@ WorkingDirectory=/opt/ai-email-assistant/backend
 
 # Load all environment variables from the shared .env file
 EnvironmentFile=/opt/ai-email-assistant/.env
+
+# Explicitly set the backend port (overrides PORT from .env if different)
+Environment=PORT=3000
+Environment=SQLX_OFFLINE=true
 
 ExecStart=/opt/ai-email-assistant/backend/target/release/ai-email-assistant
 

@@ -11,68 +11,162 @@ on:
       - deploy/**
       - .github/workflows/deploy.yml
   schedule:
-    # Daily refresh at 06:00 UTC
+    # Daily refresh at 06:00 UTC (07:00 Lisbon)
     - cron: '0 6 * * *'
   workflow_dispatch:
 
+# Prevent multiple deploys from running simultaneously
+concurrency:
+  group: deploy-vs224
+  cancel-in-progress: false
+
 # ── Deploy Job ────────────────────────────────────────────────────────────────
-# Runs on the self-hosted runner (vs224), then SSHes to root@localhost
-# so all deploy commands run with full root privileges (required for systemctl).
+# Runs on the self-hosted runner (vs224) as user 'ghrunner', then
+# SSHes to root@localhost for privileged operations (systemctl, cp to /etc).
 jobs:
   deploy:
     name: Deploy to vs224
     runs-on: self-hosted
 
     steps:
-      - name: SSH into root and deploy natively
+      # Step 1: Checkout code on the runner workspace
+      # This ensures the runner always has the latest code, even for
+      # scheduled and workflow_dispatch triggers.
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Deploy via SSH to root
         env:
           SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          # Save the SSH key securely
+          # ── Prepare SSH key ──────────────────────────────────────────────
           mkdir -p ~/.ssh
           echo "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
+          SSH="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no root@127.0.0.1"
 
-          # Connect to localhost as root and execute the deployment commands.
-          # Note: We use unquoted EOF so that $GITHUB_TOKEN is evaluated by the runner
-          # and injected into the script before it is sent over SSH.
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no root@127.0.0.1 << EOF
+          # ── Deploy script (runs as root) ─────────────────────────────────
+          # Using unquoted 'EOF' would prevent variable expansion.
+          # We use quoted 'DEPLOY_EOF' for the parts that should NOT expand,
+          # but we need GITHUB_TOKEN to expand, so we use unquoted EOF.
+          $SSH << EOF
             set -e
 
-            echo "==> Pulling latest code..."
-            cd /opt/ai-email-assistant
-            # Pull directly using the temporary action token so we don't save an expiring token to git config
-            git pull https://x-access-token:${GITHUB_TOKEN}@github.com/Guilherme1230476Ferreira/ai-email-assistant.git main
+            # ── 0. Environment setup ─────────────────────────────────────
+            # Ensure cargo and node are in PATH (installed under root)
+            export PATH="/root/.cargo/bin:/usr/local/bin:/usr/bin:/bin:\$PATH"
+            
+            # Source nvm if it exists (for node/npm)
+            [ -s "/root/.nvm/nvm.sh" ] && source "/root/.nvm/nvm.sh"
+            
+            REPO=/opt/ai-email-assistant
+            ENV_FILE=\$REPO/.env
 
-            echo "==> Building Rust backend..."
-            cd /opt/ai-email-assistant/backend
+            # Verify .env exists on the server
+            if [ ! -f "\$ENV_FILE" ]; then
+              echo "❌ ERROR: \$ENV_FILE not found!"
+              echo "   Create it manually on the server first."
+              echo "   See deploy/setup.sh or the server setup guide."
+              exit 1
+            fi
+
+            # ── 1. Pull latest code ──────────────────────────────────────
+            echo "==> [1/7] Pulling latest code..."
+            cd \$REPO
+            git fetch --all --prune
+            git reset --hard origin/main
+
+            # ── 2. Run database migrations ───────────────────────────────
+            echo "==> [2/7] Running database migrations..."
+            source <(grep '^DATABASE_URL=' "\$ENV_FILE")
+            export DATABASE_URL
+            cd \$REPO/backend
+
+            # Use sqlx-cli if available, otherwise skip (tables created by setup.sh)
+            if command -v sqlx &>/dev/null; then
+              sqlx migrate run
+              echo "    Migrations applied."
+            else
+              echo "    sqlx-cli not found — skipping migrations."
+              echo "    Install with: cargo install sqlx-cli --no-default-features --features postgres"
+            fi
+
+            # ── 3. Build Rust backend ────────────────────────────────────
+            echo "==> [3/7] Building Rust backend (release)..."
+            cd \$REPO/backend
             export SQLX_OFFLINE=true
-            cargo build --release
+            cargo build --release 2>&1 | tail -5
+            echo "    Backend compiled."
 
-            echo "==> Building SvelteKit backoffice..."
-            cd /opt/ai-email-assistant/backoffice
-            npm ci
-            npm run build
+            # ── 4. Build SvelteKit backoffice ────────────────────────────
+            echo "==> [4/7] Building SvelteKit backoffice..."
+            cd \$REPO/backoffice
+            npm ci --ignore-scripts 2>&1 | tail -3
+            npm run build 2>&1 | tail -5
+            echo "    Backoffice built."
 
-            echo "==> Reloading Nginx config..."
-            cp /opt/ai-email-assistant/nginx/nginx.conf \
-               /etc/nginx/sites-available/ai-email-assistant
+            # ── 5. Configure Nginx ───────────────────────────────────────
+            echo "==> [5/7] Configuring Nginx..."
+            cp \$REPO/nginx/nginx.conf /etc/nginx/sites-available/ai-email-assistant
+            # Always ensure the symlink exists
+            ln -sf /etc/nginx/sites-available/ai-email-assistant \
+                   /etc/nginx/sites-enabled/ai-email-assistant
+            # Remove default site if it exists
+            rm -f /etc/nginx/sites-enabled/default
             nginx -t && systemctl reload nginx
+            echo "    Nginx configured."
 
-            echo "==> Updating systemd services..."
-            cp /opt/ai-email-assistant/deploy/ai-backend.service /etc/systemd/system/
-            cp /opt/ai-email-assistant/deploy/ai-backoffice.service /etc/systemd/system/
+            # ── 6. Update systemd services ───────────────────────────────
+            echo "==> [6/7] Updating systemd services..."
+            cp \$REPO/deploy/ai-backend.service /etc/systemd/system/
+            cp \$REPO/deploy/ai-backoffice.service /etc/systemd/system/
             systemctl daemon-reload
 
-            echo "==> Restarting services..."
+            # ── 7. Restart services ──────────────────────────────────────
+            echo "==> [7/7] Restarting services..."
             systemctl restart ai-backend
+            sleep 3
             systemctl restart ai-backoffice
 
+            # ── Health check ─────────────────────────────────────────────
             echo "==> Health check..."
             sleep 5
-            systemctl is-active --quiet ai-backend   || { journalctl -u ai-backend -n 20 --no-pager; exit 1; }
-            systemctl is-active --quiet ai-backoffice || { journalctl -u ai-backoffice -n 20 --no-pager; exit 1; }
-            echo "✅ All services running."
-            systemctl status ai-backend ai-backoffice --no-pager
+
+            if systemctl is-active --quiet ai-backend; then
+              echo "    ✅ ai-backend is running"
+            else
+              echo "    ❌ ai-backend FAILED"
+              journalctl -u ai-backend -n 30 --no-pager
+              exit 1
+            fi
+
+            if systemctl is-active --quiet ai-backoffice; then
+              echo "    ✅ ai-backoffice is running"
+            else
+              echo "    ❌ ai-backoffice FAILED"
+              journalctl -u ai-backoffice -n 30 --no-pager
+              exit 1
+            fi
+
+            # Quick HTTP health checks
+            if command -v curl &>/dev/null; then
+              HTTP_CODE=\$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/health || echo "000")
+              echo "    Backend health: HTTP \$HTTP_CODE"
+              HTTP_CODE=\$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3001 || echo "000")
+              echo "    Backoffice:     HTTP \$HTTP_CODE"
+            fi
+
+            echo ""
+            echo "══════════════════════════════════════════════════════════"
+            echo "  ✅ Deploy complete!"
+            echo "  Backend:    http://localhost:3000"
+            echo "  Backoffice: http://localhost:3001"
+            echo "  Public:     http://vs224.dei.isep.ipp.pt:2224"
+            echo "══════════════════════════════════════════════════════════"
           EOF
+
+          # Clean up SSH key
+          rm -f ~/.ssh/deploy_key

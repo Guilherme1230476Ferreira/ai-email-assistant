@@ -2,17 +2,24 @@
 Description=AI Email Assistant — SvelteKit Backoffice
 Documentation=https://github.com/Guilherme1230476Ferreira/ai-email-assistant
 After=network.target ai-backend.service
+Wants=ai-backend.service
 
 [Service]
 Type=simple
 User=root
 WorkingDirectory=/opt/ai-email-assistant/backoffice
 
-# Load shared env + override API URL to localhost (same machine, no Docker)
+# Load shared env
 EnvironmentFile=/opt/ai-email-assistant/.env
-Environment=BACKEND_URL=http://127.0.0.1:3000
 
-ExecStart=/usr/bin/env PORT=3001 HOST=0.0.0.0 /usr/bin/node /opt/ai-email-assistant/backoffice/build/index.js
+# Override port to avoid collision with backend (which uses PORT=3000)
+Environment=PORT=3001
+Environment=HOST=0.0.0.0
+Environment=BACKEND_URL=http://127.0.0.1:3000
+# SvelteKit CSRF protection needs the public origin in production
+Environment=ORIGIN=http://vs224.dei.isep.ipp.pt:2224
+
+ExecStart=/usr/bin/node /opt/ai-email-assistant/backoffice/build/index.js
 
 # Restart automatically on crash
 Restart=always
