@@ -1,4 +1,5 @@
 use axum::{Router, routing::get};
+use tower_http::cors::{CorsLayer, Any};
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
@@ -84,7 +85,7 @@ impl utoipa::Modify for SecurityAddon {
 }
 
 pub async fn create_router(app_state: AppState) -> Router {
-    Router::new()
+    let router = Router::new()
         .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()))
         .route("/health", get(health))
         .route(
@@ -157,7 +158,15 @@ pub async fn create_router(app_state: AppState) -> Router {
             "/api/admin/settings/verify",
             axum::routing::post(settings_handler::verify_settings_handler),
         )
-        .with_state(app_state)
+        .with_state(app_state);
+
+    // CORS: allow the Chrome extension (from mail.google.com) to call the API
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods(Any)
+        .allow_headers(Any);
+
+    router.layer(cors)
 }
 
 #[utoipa::path(

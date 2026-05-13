@@ -58,7 +58,7 @@
 </script>
 
 <svelte:head>
-  <title>Settings · Mailwise</title>
+  <title>Settings · MailMate</title>
 </svelte:head>
 
 <div class="mx-auto w-full max-w-3xl space-y-8">

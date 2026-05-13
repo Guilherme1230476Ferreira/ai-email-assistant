@@ -40,7 +40,7 @@
 </script>
 
 <svelte:head>
-  <title>Roles · Mailwise</title>
+  <title>Roles · MailMate</title>
 </svelte:head>
 
 <div class="mx-auto w-full max-w-5xl space-y-8">

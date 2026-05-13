@@ -33,7 +33,7 @@
       <div class="mb-6 flex h-14 w-14 items-center justify-center rounded-lg bg-[var(--color-accent)] text-black shadow-lg">
         <Sparkles class="h-8 w-8" strokeWidth={2.5} />
       </div>
-      <h1 class="text-3xl font-bold tracking-tight text-white">Sign in to Mailwise</h1>
+      <h1 class="text-3xl font-bold tracking-tight text-white">Sign in to MailMate</h1>
       <p class="mt-2.5 text-base text-[var(--color-muted)]">Welcome back. Enter your details to continue.</p>
     </div>
 

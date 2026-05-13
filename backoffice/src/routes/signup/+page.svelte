@@ -76,7 +76,7 @@
       </div>
       <h1 class="text-3xl font-bold tracking-tight text-white">Create an account</h1>
       <p class="mt-2.5 text-base text-[var(--color-muted)]">
-        Join Mailwise to automate your responses.
+        Join MailMate to automate your responses.
       </p>
     </div>
 

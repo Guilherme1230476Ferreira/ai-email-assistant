@@ -51,7 +51,7 @@
         <div class="flex h-8 w-8 items-center justify-center rounded-md bg-[var(--color-accent)] text-black">
           <Sparkles class="h-4 w-4" strokeWidth={2.5} />
         </div>
-        <span class="text-sm font-semibold tracking-tight text-white">Mailwise</span>
+        <span class="text-sm font-semibold tracking-tight text-white">MailMate</span>
       </a>
       <button type="button" aria-label="Close menu"
         class="rounded-md p-1.5 text-[var(--color-muted-foreground)] hover:bg-[var(--color-surface-2)] hover:text-white lg:hidden"

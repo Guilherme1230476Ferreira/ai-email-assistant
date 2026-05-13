@@ -111,7 +111,7 @@
 </script>
 
 <svelte:head>
-  <title>Emails · Mailwise</title>
+  <title>Emails · MailMate</title>
 </svelte:head>
 
 <div class="mx-auto w-full max-w-5xl space-y-8 pb-12">

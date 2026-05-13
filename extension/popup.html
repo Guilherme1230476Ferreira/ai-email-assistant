@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=320">
+  <title>MailMate</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      width: 340px;
+      min-height: 200px;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: #0f0a1a;
+      color: #e0e7ff;
+    }
+
+    .container {
+      padding: 24px;
+    }
+
+    /* ── Header ──────────────────────────────────────────────────────── */
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .logo {
+      width: 36px;
+      height: 36px;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .logo svg {
+      width: 20px;
+      height: 20px;
+      color: #fff;
+    }
+
+    .header h1 {
+      font-size: 18px;
+      font-weight: 700;
+      background: linear-gradient(135deg, #c7d2fe, #a78bfa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    /* ── Status ──────────────────────────────────────────────────────── */
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      border-radius: 10px;
+      margin-bottom: 16px;
+      font-size: 13px;
+    }
+
+    .status-connected {
+      background: rgba(34, 197, 94, 0.1);
+      border: 1px solid rgba(34, 197, 94, 0.2);
+      color: #86efac;
+    }
+
+    .status-disconnected {
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.2);
+      color: #fca5a5;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .status-connected .status-dot { background: #22c55e; }
+    .status-disconnected .status-dot { background: #ef4444; }
+
+    /* ── Form ────────────────────────────────────────────────────────── */
+    .form-group {
+      margin-bottom: 12px;
+    }
+
+    label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: #a5b4fc;
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid rgba(99, 102, 241, 0.2);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.05);
+      color: #e0e7ff;
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    input:focus {
+      border-color: #6366f1;
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+    }
+
+    input::placeholder { color: #6366f180; }
+
+    /* ── Buttons ─────────────────────────────────────────────────────── */
+    .btn {
+      width: 100%;
+      padding: 10px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      color: #fff;
+    }
+
+    .btn-primary:hover {
+      background: linear-gradient(135deg, #4f46e5, #7c3aed);
+      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+    }
+
+    .btn-primary:disabled {
+      opacity: 0.5;
+      cursor: wait;
+    }
+
+    .btn-ghost {
+      background: transparent;
+      color: #a5b4fc;
+      border: 1px solid rgba(99, 102, 241, 0.2);
+      margin-top: 8px;
+    }
+
+    .btn-ghost:hover {
+      background: rgba(99, 102, 241, 0.1);
+    }
+
+    /* ── Settings ────────────────────────────────────────────────────── */
+    .settings {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid rgba(99, 102, 241, 0.1);
+    }
+
+    .settings summary {
+      font-size: 12px;
+      color: #a5b4fc;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .settings-content {
+      margin-top: 12px;
+    }
+
+    /* ── Error ───────────────────────────────────────────────────────── */
+    .error {
+      color: #fca5a5;
+      font-size: 12px;
+      margin-top: 8px;
+      display: none;
+    }
+
+    .error.show { display: block; }
+
+    /* ── User Info ───────────────────────────────────────────────────── */
+    .user-email {
+      font-weight: 500;
+      color: #e0e7ff;
+    }
+
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <div class="logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 3l1.912 5.813a2 2 0 0 0 1.272 1.278L21 12l-5.816 1.91a2 2 0 0 0-1.275 1.278L12 21l-1.91-5.812a2 2 0 0 0-1.277-1.278L3 12l5.813-1.91a2 2 0 0 0 1.278-1.277L12 3z"/>
+        </svg>
+      </div>
+      <h1>MailMate</h1>
+    </div>
+
+    <!-- Connected State -->
+    <div id="logged-in-view" class="hidden">
+      <div class="status status-connected">
+        <div class="status-dot"></div>
+        <span>Connected as <span id="user-email" class="user-email"></span></span>
+      </div>
+      <p style="font-size: 13px; color: #a5b4fc; line-height: 1.5;">
+        Open Gmail, click <strong>Reply</strong> on any email, then click the
+        <strong>✨ Generate Reply</strong> button in the compose toolbar.
+      </p>
+      <button id="logout-btn" class="btn btn-ghost">Sign Out</button>
+    </div>
+
+    <!-- Login Form -->
+    <div id="login-view">
+      <div class="status status-disconnected">
+        <div class="status-dot"></div>
+        <span>Not connected</span>
+      </div>
+
+      <form id="login-form">
+        <div class="form-group">
+          <label for="email">Email</label>
+          <input type="email" id="email" placeholder="admin@gmail.com" required>
+        </div>
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input type="password" id="password" placeholder="••••••••" required>
+        </div>
+        <div id="login-error" class="error"></div>
+        <button type="submit" id="login-btn" class="btn btn-primary">Sign In</button>
+      </form>
+
+      <!-- Server URL Setting -->
+      <details class="settings">
+        <summary>⚙️ Server Settings</summary>
+        <div class="settings-content">
+          <div class="form-group">
+            <label for="api-url">Backend URL</label>
+            <input type="url" id="api-url" placeholder="http://localhost:3000">
+          </div>
+          <button id="save-url-btn" class="btn btn-ghost">Save URL</button>
+        </div>
+      </details>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

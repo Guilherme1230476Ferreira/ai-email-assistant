@@ -75,7 +75,7 @@
 </script>
 
 <svelte:head>
-  <title>Users · Mailwise</title>
+  <title>Users · MailMate</title>
 </svelte:head>
 
 <div class="mx-auto w-full max-w-5xl space-y-8">

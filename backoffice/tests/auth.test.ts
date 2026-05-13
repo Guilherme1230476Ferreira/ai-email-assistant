@@ -33,7 +33,7 @@ test.describe('Login Page', () => {
 	});
 
 	test('renders all required elements', async ({ page }) => {
-		await expect(page.getByRole('heading', { name: /sign in to mailwise/i })).toBeVisible();
+		await expect(page.getByRole('heading', { name: /sign in to mailmate/i })).toBeVisible();
 		await expect(page.getByLabel(/email/i)).toBeVisible();
 		await expect(page.getByLabel(/password/i)).toBeVisible();
 		await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible();

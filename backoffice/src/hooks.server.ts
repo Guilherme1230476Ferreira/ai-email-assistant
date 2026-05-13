@@ -48,7 +48,7 @@ function getMockResponse(url: URL, request: Request): Response {
 		const auth = request.headers.get('authorization');
 		if (auth?.includes('Bearer')) {
 			return new Response(
-				JSON.stringify({ id: 'mock-admin-id', email: 'admin@mailwise.test', role_id: 'admin' }),
+				JSON.stringify({ id: 'mock-admin-id', email: 'admin@mailmate.test', role_id: 'admin' }),
 				{ status: 200, headers: { 'Content-Type': 'application/json' } }
 			);
 		}
