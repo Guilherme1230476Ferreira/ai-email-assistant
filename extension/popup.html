@@ -10,9 +10,9 @@
     body {
       width: 340px;
       min-height: 200px;
-      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-      background: #0f0a1a;
-      color: #e0e7ff;
+      font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: #000000;
+      color: #ffffff;
     }
 
     .container {
@@ -30,7 +30,7 @@
     .logo {
       width: 36px;
       height: 36px;
-      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      background: #22d3ee;
       border-radius: 10px;
       display: flex;
       align-items: center;
@@ -40,15 +40,13 @@
     .logo svg {
       width: 20px;
       height: 20px;
-      color: #fff;
+      color: #000;
     }
 
     .header h1 {
       font-size: 18px;
       font-weight: 700;
-      background: linear-gradient(135deg, #c7d2fe, #a78bfa);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
+      color: #22d3ee;
     }
 
     /* ── Status ──────────────────────────────────────────────────────── */
@@ -63,9 +61,9 @@
     }
 
     .status-connected {
-      background: rgba(34, 197, 94, 0.1);
-      border: 1px solid rgba(34, 197, 94, 0.2);
-      color: #86efac;
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.2);
+      color: #6ee7b7;
     }
 
     .status-disconnected {
@@ -81,7 +79,7 @@
       flex-shrink: 0;
     }
 
-    .status-connected .status-dot { background: #22c55e; }
+    .status-connected .status-dot { background: #10b981; }
     .status-disconnected .status-dot { background: #ef4444; }
 
     /* ── Form ────────────────────────────────────────────────────────── */
@@ -93,7 +91,7 @@
       display: block;
       font-size: 12px;
       font-weight: 600;
-      color: #a5b4fc;
+      color: #67e8f9;
       margin-bottom: 4px;
       text-transform: uppercase;
       letter-spacing: 0.05em;
@@ -102,21 +100,21 @@
     input {
       width: 100%;
       padding: 10px 12px;
-      border: 1px solid rgba(99, 102, 241, 0.2);
+      border: 1px solid #1f1f23;
       border-radius: 8px;
-      background: rgba(255, 255, 255, 0.05);
-      color: #e0e7ff;
+      background: #0a0a0a;
+      color: #ffffff;
       font-size: 14px;
       outline: none;
       transition: border-color 0.2s;
     }
 
     input:focus {
-      border-color: #6366f1;
-      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+      border-color: #22d3ee;
+      box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.1);
     }
 
-    input::placeholder { color: #6366f180; }
+    input::placeholder { color: #71717a; }
 
     /* ── Buttons ─────────────────────────────────────────────────────── */
     .btn {
@@ -131,13 +129,13 @@
     }
 
     .btn-primary {
-      background: linear-gradient(135deg, #6366f1, #8b5cf6);
-      color: #fff;
+      background: #22d3ee;
+      color: #000000;
     }
 
     .btn-primary:hover {
-      background: linear-gradient(135deg, #4f46e5, #7c3aed);
-      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+      background: #06b6d4;
+      box-shadow: 0 4px 12px rgba(34, 211, 238, 0.3);
     }
 
     .btn-primary:disabled {
@@ -147,31 +145,14 @@
 
     .btn-ghost {
       background: transparent;
-      color: #a5b4fc;
-      border: 1px solid rgba(99, 102, 241, 0.2);
+      color: #a5f3fc;
+      border: 1px solid #1f1f23;
       margin-top: 8px;
     }
 
     .btn-ghost:hover {
-      background: rgba(99, 102, 241, 0.1);
-    }
-
-    /* ── Settings ────────────────────────────────────────────────────── */
-    .settings {
-      margin-top: 16px;
-      padding-top: 16px;
-      border-top: 1px solid rgba(99, 102, 241, 0.1);
-    }
-
-    .settings summary {
-      font-size: 12px;
-      color: #a5b4fc;
-      cursor: pointer;
-      user-select: none;
-    }
-
-    .settings-content {
-      margin-top: 12px;
+      background: #111113;
+      border-color: #2a2a30;
     }
 
     /* ── Error ───────────────────────────────────────────────────────── */
@@ -187,7 +168,7 @@
     /* ── User Info ───────────────────────────────────────────────────── */
     .user-email {
       font-weight: 500;
-      color: #e0e7ff;
+      color: #22d3ee;
     }
 
     .hidden { display: none !important; }
@@ -211,9 +192,9 @@
         <div class="status-dot"></div>
         <span>Connected as <span id="user-email" class="user-email"></span></span>
       </div>
-      <p style="font-size: 13px; color: #a5b4fc; line-height: 1.5;">
-        Open Gmail, click <strong>Reply</strong> on any email, then click the
-        <strong>✨ Generate Reply</strong> button in the compose toolbar.
+      <p style="font-size: 13px; color: #a1a1aa; line-height: 1.5;">
+        Open Gmail, click <strong style="color:#22d3ee;">Reply</strong> on any email, then click the
+        <strong style="color:#22d3ee;">✨ Generate Reply</strong> button in the compose toolbar.
       </p>
       <button id="logout-btn" class="btn btn-ghost">Sign Out</button>
     </div>
@@ -237,18 +218,6 @@
         <div id="login-error" class="error"></div>
         <button type="submit" id="login-btn" class="btn btn-primary">Sign In</button>
       </form>
-
-      <!-- Server URL Setting -->
-      <details class="settings">
-        <summary>⚙️ Server Settings</summary>
-        <div class="settings-content">
-          <div class="form-group">
-            <label for="api-url">Backend URL</label>
-            <input type="url" id="api-url" placeholder="http://localhost:3000">
-          </div>
-          <button id="save-url-btn" class="btn btn-ghost">Save URL</button>
-        </div>
-      </details>
     </div>
   </div>
 

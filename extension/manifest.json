@@ -6,9 +6,9 @@
   "permissions": ["storage"],
   "host_permissions": [
     "https://mail.google.com/*",
+    "https://dreamy-swimwear-daffodil.ngrok-free.dev/*",
     "http://vs224.dei.isep.ipp.pt:2224/*",
-    "http://localhost:3000/*",
-    "https://*.trycloudflare.com/*"
+    "http://localhost:3000/*"
   ],
   "background": {
     "service_worker": "service-worker.js"

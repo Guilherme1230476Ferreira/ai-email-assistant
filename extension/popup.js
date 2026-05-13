@@ -1,6 +1,6 @@
 // =============================================================================
 // MailMate — Popup Script
-// Handles login form, auth status display, and server URL configuration
+// Handles login form, auth status display, and logout
 // =============================================================================
 
 const loginView = document.getElementById('login-view');
@@ -10,17 +10,10 @@ const loginBtn = document.getElementById('login-btn');
 const loginError = document.getElementById('login-error');
 const logoutBtn = document.getElementById('logout-btn');
 const userEmailSpan = document.getElementById('user-email');
-const apiUrlInput = document.getElementById('api-url');
-const saveUrlBtn = document.getElementById('save-url-btn');
 
 // ── Init ─────────────────────────────────────────────────────────────────────
 
-document.addEventListener('DOMContentLoaded', async () => {
-  // Load saved API URL
-  const { apiUrl } = await chrome.storage.local.get('apiUrl');
-  if (apiUrl) apiUrlInput.value = apiUrl;
-
-  // Check auth status
+document.addEventListener('DOMContentLoaded', () => {
   chrome.runtime.sendMessage({ type: 'GET_AUTH_STATUS' }, (response) => {
     if (response?.loggedIn) {
       showLoggedIn(response.email);
@@ -32,7 +25,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 // ── Login ────────────────────────────────────────────────────────────────────
 
-loginForm.addEventListener('submit', async (e) => {
+loginForm.addEventListener('submit', (e) => {
   e.preventDefault();
 
   const email = document.getElementById('email').value.trim();
@@ -65,18 +58,6 @@ logoutBtn.addEventListener('click', () => {
   chrome.runtime.sendMessage({ type: 'LOGOUT' }, () => {
     showLoginForm();
   });
-});
-
-// ── Save URL ─────────────────────────────────────────────────────────────────
-
-saveUrlBtn.addEventListener('click', () => {
-  const url = apiUrlInput.value.trim().replace(/\/+$/, ''); // Remove trailing slashes
-  if (url) {
-    chrome.storage.local.set({ apiUrl: url }, () => {
-      saveUrlBtn.textContent = '✓ Saved';
-      setTimeout(() => { saveUrlBtn.textContent = 'Save URL'; }, 1500);
-    });
-  }
 });
 
 // ── View Switching ───────────────────────────────────────────────────────────

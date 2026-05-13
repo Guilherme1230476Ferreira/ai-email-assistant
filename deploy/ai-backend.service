@@ -16,7 +16,7 @@ EnvironmentFile=/opt/ai-email-assistant/.env
 Environment=PORT=3000
 Environment=SQLX_OFFLINE=true
 # Public-facing URL for OAuth redirects (must match Google Console redirect URI)
-Environment=PUBLIC_URL=http://vs224.dei.isep.ipp.pt:2224
+Environment=PUBLIC_URL=https://dreamy-swimwear-daffodil.ngrok-free.dev
 
 ExecStart=/opt/ai-email-assistant/backend/target/release/ai-email-assistant
 

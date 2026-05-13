@@ -7,7 +7,7 @@
 // 3. Parses SSE stream and forwards tokens back to content script
 // =============================================================================
 
-const DEFAULT_API_URL = 'http://localhost:3000';
+const DEFAULT_API_URL = 'https://dreamy-swimwear-daffodil.ngrok-free.dev';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
