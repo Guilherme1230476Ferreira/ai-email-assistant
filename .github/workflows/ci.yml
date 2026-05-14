@@ -28,7 +28,8 @@ jobs:
     env:
       CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
       CARGO_NET_GIT_FETCH_WITH_CLI: true
-      CARGO_HTTP_TIMEOUT: 120
+      CARGO_HTTP_TIMEOUT: 300
+      CARGO_NET_RETRY: 5
       CARGO_HTTP_CHECK_REVOCABLE: false
 
     defaults:
@@ -50,6 +51,17 @@ jobs:
             backend/target
           key: ${{ runner.os }}-cargo-${{ hashFiles('backend/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-
+
+      # Pre-fetch dependencies with retry (ISEP network can be slow)
+      - name: Fetch cargo dependencies
+        run: |
+          for i in 1 2 3; do
+            echo "Attempt $i: fetching dependencies..."
+            cargo fetch --verbose && break
+            echo "Attempt $i failed, retrying in 30s..."
+            sleep 30
+          done
+        working-directory: ./backend
 
       # cargo check uses the .sqlx offline cache — no DB needed
       - name: Cargo check (offline)

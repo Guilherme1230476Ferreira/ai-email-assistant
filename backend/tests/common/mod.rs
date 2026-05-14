@@ -23,11 +23,13 @@ use ai_email_assistant::{
     middleware::auth::create_jwt,
     models::dto::CreateUserRequest,
     repositories::{
-        audit_repo::AuditRepository, email_repo::EmailRepository, role_repo::RoleRepository,
+        audit_repo::AuditRepository, email_repo::EmailRepository,
+        knowledge_repo::KnowledgeRepository, role_repo::RoleRepository,
         settings_repo::SettingsRepository, user_repo::UserRepository,
     },
     router::create_router,
     services::llm_service::UnifiedLlmService,
+    services::rig_service::RigRagService,
     state::AppState,
 };
 
@@ -43,15 +45,28 @@ pub async fn build_test_state(pool: PgPool) -> AppState {
     let arc_pool = Arc::new(pool.clone());
     let crypto = Arc::new(CryptoService::new(config.clone()).unwrap());
 
+    // Create a test-compatible RigRagService (embedding endpoints won't be called in tests)
+    let rig_service = Arc::new(RigRagService::new(
+        "http://localhost:9999",  // dummy — not called in unit tests
+        "test-key",
+        "test-model",
+        "http://localhost:9999",
+        "test-key",
+        "test-model",
+        arc_pool.clone(),
+    ));
+
     AppState {
         user_repo: Arc::new(UserRepository::new(arc_pool.clone())),
         role_repo: Arc::new(RoleRepository::new(arc_pool.clone())),
         email_repo: Arc::new(EmailRepository::new(arc_pool.clone())),
+        knowledge_repo: Arc::new(KnowledgeRepository::new(arc_pool.clone())),
         settings_repo: Arc::new(SettingsRepository::new(arc_pool.clone(), (*crypto).clone())),
         audit_repo: Arc::new(AuditRepository::new(pool)),
         crypto_service: crypto,
         llm_service: Arc::new(UnifiedLlmService::new()),
         config,
+        rig_service,
         rate_limiters: Arc::new(RwLock::new(
             HashMap::<IpAddr, Vec<std::time::Instant>>::new(),
         )),
