@@ -136,6 +136,26 @@ pub struct GenerateEmailResponse {
     pub email: Email,
 }
 
+// ── Knowledge Base DTOs ──────────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct CreateQAPairRequest {
+    #[schema(example = "What is our refund policy?")]
+    pub question: String,
+    #[schema(example = "We offer a 30-day full refund on all products.")]
+    pub answer: String,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct KnowledgeEntryResponse {
+    pub id: Uuid,
+    pub entry_type: String,
+    pub title: String,
+    pub content: String,
+    pub chunk_count: i64,
+    pub created_at: DateTime<Utc>,
+}
+
 /// Query parameters for paginated list endpoints.
 #[derive(Debug, Deserialize, IntoParams)]
 pub struct PaginationParams {

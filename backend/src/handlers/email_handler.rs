@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use axum::{
     Json,
-    extract::{Query, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
 };
@@ -16,8 +16,12 @@ use crate::{
         domain::Email,
         dto::{GenerateEmailRequest, PaginatedResponse, PaginationParams},
     },
-    repositories::{email_repo::EmailRepository, settings_repo::SettingsRepository},
+    repositories::{
+        email_repo::EmailRepository,
+        settings_repo::SettingsRepository,
+    },
     services::llm_service::LlmService,
+    services::rig_service::RigRagService,
     state::AppState,
 };
 
@@ -40,7 +44,8 @@ pub async fn generate_email_handler(
     State(settings_repo): State<Arc<SettingsRepository>>,
     State(llm_service): State<Arc<dyn LlmService + Send + Sync>>,
     State(email_repo): State<Arc<EmailRepository>>,
-    State(config): State<Arc<Config>>,
+    State(rig_service): State<Arc<RigRagService>>,
+    State(_config): State<Arc<Config>>,
     auth_user: AuthUser,
     Json(request): Json<GenerateEmailRequest>,
 ) -> Result<impl IntoResponse, AppError> {
@@ -51,38 +56,32 @@ pub async fn generate_email_handler(
         .await?
         .ok_or_else(|| AppError::new(StatusCode::BAD_REQUEST, "LLM API Key is not configured."))?;
 
-    // 2. Fetch Embeddings and Context for RAG
+    // 2. Rig-powered RAG: embed query → retrieve from knowledge base + past emails
     let mut context_str = String::new();
-    let embedding_result = llm_service
-        .generate_embedding(
-            &request.prompt,
-            &config.embedding_api_url,
-            &config.embedding_model,
-            &config.embedding_api_key,
-        )
-        .await;
-
     let mut prompt_embedding = None;
-    match embedding_result {
-        Ok(vec) => {
-            if let Ok(similar_emails) = email_repo
-                .find_similar_emails(auth_user.0.id, &vec, 3)
+
+    match rig_service.vector_index.embed_text(&request.prompt).await {
+        Ok(embedding_floats) => {
+            let vec = pgvector::Vector::from(embedding_floats.clone());
+
+            // Use Rig's unified context search (knowledge base + past emails)
+            if let Ok(results) = rig_service.vector_index
+                .search_all_context(&embedding_floats, auth_user.0.id, 5)
                 .await
             {
-                for past_email in similar_emails {
-                    if let Some(resp) = past_email.generated_response {
-                        context_str.push_str(&format!(
-                            "--- Past Received Email: {}\n--- How You Replied: {}\n\n",
-                            past_email.original_content, resp
-                        ));
-                    }
+                for (i, ctx) in results.iter().enumerate() {
+                    context_str.push_str(&format!(
+                        "--- Context #{} [{}] (relevance: {:.2}):\n{}\n\n",
+                        i + 1, ctx.title, ctx.score, ctx.text
+                    ));
                 }
             }
+
             prompt_embedding = Some(vec);
         }
         Err(e) => {
             eprintln!(
-                "Warning: Failed to fetch embeddings for RAG Context. Proceeding without context. Error: {:?}",
+                "Warning: Rig embedding failed, proceeding without RAG context: {:?}",
                 e
             );
         }
@@ -115,21 +114,12 @@ pub async fn generate_email_handler(
             )
         })?;
 
-    // 4. Fetch Embedding for the LLM's Generated Response
-    let response_embedding_result = llm_service
-        .generate_embedding(
-            &generated_response,
-            &config.embedding_api_url,
-            &config.embedding_model,
-            &config.embedding_api_key,
-        )
-        .await;
-
-    let response_embedding = match response_embedding_result {
+    // 4. Fetch Embedding for the LLM's Generated Response using Rig
+    let response_embedding = match rig_service.embed_for_storage(&generated_response).await {
         Ok(vec) => Some(vec),
         Err(e) => {
             eprintln!(
-                "Warning: Failed to fetch embedding for generated response: {:?}",
+                "Warning: Rig failed to embed generated response: {:?}",
                 e
             );
             None
@@ -177,7 +167,8 @@ pub async fn generate_email_stream_handler(
     State(settings_repo): State<Arc<SettingsRepository>>,
     State(llm_service): State<Arc<dyn LlmService + Send + Sync>>,
     State(email_repo): State<Arc<EmailRepository>>,
-    State(config): State<Arc<Config>>,
+    State(rig_service): State<Arc<RigRagService>>,
+    State(_config): State<Arc<Config>>,
     auth_user: AuthUser,
     Json(request): Json<GenerateEmailRequest>,
 ) -> Result<
@@ -193,38 +184,32 @@ pub async fn generate_email_stream_handler(
         .await?
         .ok_or_else(|| AppError::new(StatusCode::BAD_REQUEST, "LLM API Key is not configured."))?;
 
-    // 2. RAG context
+    // 2. Rig-powered RAG context retrieval
     let mut context_str = String::new();
-    let embedding_result = llm_service
-        .generate_embedding(
-            &request.prompt,
-            &config.embedding_api_url,
-            &config.embedding_model,
-            &config.embedding_api_key,
-        )
-        .await;
-
     let mut prompt_embedding = None;
-    match embedding_result {
-        Ok(vec) => {
-            if let Ok(similar_emails) = email_repo
-                .find_similar_emails(auth_user.0.id, &vec, 3)
+
+    match rig_service.vector_index.embed_text(&request.prompt).await {
+        Ok(embedding_floats) => {
+            let vec = pgvector::Vector::from(embedding_floats.clone());
+
+            // Use Rig's unified context search (knowledge base + past emails)
+            if let Ok(results) = rig_service.vector_index
+                .search_all_context(&embedding_floats, auth_user.0.id, 5)
                 .await
             {
-                for past_email in similar_emails {
-                    if let Some(resp) = past_email.generated_response {
-                        context_str.push_str(&format!(
-                            "--- Past Received Email: {}\n--- How You Replied: {}\n\n",
-                            past_email.original_content, resp
-                        ));
-                    }
+                for (i, ctx) in results.iter().enumerate() {
+                    context_str.push_str(&format!(
+                        "--- Context #{} [{}] (relevance: {:.2}):\n{}\n\n",
+                        i + 1, ctx.title, ctx.score, ctx.text
+                    ));
                 }
             }
+
             prompt_embedding = Some(vec);
         }
         Err(e) => {
             eprintln!(
-                "Warning: Embedding failed, proceeding without context: {:?}",
+                "Warning: Rig embedding failed, proceeding without context: {:?}",
                 e
             );
         }
@@ -261,9 +246,6 @@ pub async fn generate_email_stream_handler(
     // 5. Build the SSE stream: yield tokens, then save to DB on completion
     let user_id = auth_user.0.id;
     let prompt = request.prompt.clone();
-    let emb_api_url = config.embedding_api_url.clone();
-    let emb_model = config.embedding_model.clone();
-    let emb_key = config.embedding_api_key.clone();
 
     let sse_stream = async_stream::stream! {
         let mut full_response = String::new();
@@ -289,8 +271,8 @@ pub async fn generate_email_stream_handler(
         }
 
         // Stream done — save the email to DB
-        // Generate response embedding
-        let resp_embedding = match llm_service.generate_embedding(&full_response, &emb_api_url, &emb_model, &emb_key).await {
+        // Generate response embedding using Rig
+        let resp_embedding = match rig_service.embed_for_storage(&full_response).await {
             Ok(v) => Some(v),
             Err(_) => None,
         };
@@ -313,6 +295,40 @@ pub async fn generate_email_stream_handler(
     };
 
     Ok(axum::response::sse::Sse::new(sse_stream))
+}
+
+// ─── Delete Email ────────────────────────────────────────────────────────────
+
+#[utoipa::path(
+    delete,
+    path = "/api/emails/{id}",
+    responses(
+        (status = 204, description = "Email deleted"),
+        (status = 404, description = "Email not found"),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Email"
+)]
+#[axum::debug_handler(state = AppState)]
+pub async fn delete_email_handler(
+    State(email_repo): State<Arc<EmailRepository>>,
+    auth_user: AuthUser,
+    Path(id): Path<uuid::Uuid>,
+) -> Result<impl IntoResponse, AppError> {
+    let deleted = email_repo
+        .delete_email(id, auth_user.0.id)
+        .await
+        .map_err(|e| {
+            eprintln!("Email delete error: {:?}", e);
+            AppError::new(StatusCode::INTERNAL_SERVER_ERROR, "Failed to delete email")
+        })?;
+
+    if deleted {
+        Ok(StatusCode::NO_CONTENT)
+    } else {
+        Err(AppError::new(StatusCode::NOT_FOUND, "Email not found"))
+    }
 }
 
 // ─── Telemetry ───────────────────────────────────────────────────────────────

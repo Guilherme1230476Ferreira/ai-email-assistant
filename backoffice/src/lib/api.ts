@@ -78,6 +78,7 @@ export const api = {
 	createRole: (name: string) => request<ApiRole>('POST', '/admin/roles', { name }),
 	deleteRole: (id: string) => request<void>('DELETE', `/admin/roles/${id}`),
 	generateEmail: (prompt: string) => request<ApiEmail>('POST', '/emails/generate', { prompt }),
+	deleteEmail: (id: string) => request<void>('DELETE', `/emails/${id}`),
 	
 	// Streaming generation
 	generateEmailStream: async (

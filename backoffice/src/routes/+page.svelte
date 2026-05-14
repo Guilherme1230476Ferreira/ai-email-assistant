@@ -4,12 +4,22 @@
 
   let { data }: { data: PageData } = $props();
 
-  let stats = $derived([
-    { label: 'Emails generated', value: data.stats.emailsCount.toString(), icon: Mail, href: '/emails' },
-    { label: 'Users', value: data.stats.usersCount.toString(), icon: Users, href: '/users' },
-    { label: 'Roles', value: data.stats.rolesCount.toString(), icon: Shield, href: '/roles' },
-    { label: 'LLM model', value: data.llm?.llm_model || 'Not set', icon: Cpu, href: '/settings' }
-  ]);
+  const isAdmin = $derived(data.userRole === 'admin');
+
+  // Stats cards: regular users see only Emails & LLM model
+  let stats = $derived(
+    isAdmin
+      ? [
+          { label: 'Emails generated', value: data.stats.emailsCount.toString(), icon: Mail, href: '/emails' },
+          { label: 'Users', value: data.stats.usersCount.toString(), icon: Users, href: '/users' },
+          { label: 'Roles', value: data.stats.rolesCount.toString(), icon: Shield, href: '/roles' },
+          { label: 'LLM model', value: data.llm?.llm_model || 'Not set', icon: Cpu, href: '/settings' }
+        ]
+      : [
+          { label: 'Emails generated', value: data.stats.emailsCount.toString(), icon: Mail, href: '/emails' },
+          { label: 'LLM model', value: data.llm?.llm_model || 'Not set', icon: Cpu, href: null }
+        ]
+  );
 
   let llmConfig = $derived({
     model: data.llm?.llm_model || 'Unknown',
@@ -62,30 +72,46 @@
   <header class="flex flex-col gap-1">
     <h1 class="text-2xl font-semibold tracking-tight text-white">Dashboard</h1>
     <p class="text-sm text-[var(--color-muted-foreground)]">
-      Overview of your AI email assistant.
+      {isAdmin ? 'Administration overview of your AI email assistant.' : 'Overview of your AI email assistant.'}
     </p>
   </header>
 
-  <section class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+  <section class="grid gap-3 {isAdmin ? 'grid-cols-2 lg:grid-cols-4' : 'grid-cols-1 sm:grid-cols-2'}">
     {#each stats as s (s.label)}
-      <a
-        href={s.href}
-        class="group flex flex-col justify-between rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4 transition hover:border-[var(--color-border-strong)]"
-      >
-        <div class="flex items-center justify-between">
-          <span class="text-xs text-[var(--color-muted-foreground)]">{s.label}</span>
-          <s.icon class="h-4 w-4 text-[var(--color-muted)]" />
+      {#if s.href}
+        <a
+          href={s.href}
+          class="group flex flex-col justify-between rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4 transition hover:border-[var(--color-border-strong)]"
+        >
+          <div class="flex items-center justify-between">
+            <span class="text-xs text-[var(--color-muted-foreground)]">{s.label}</span>
+            <s.icon class="h-4 w-4 text-[var(--color-muted)]" />
+          </div>
+          <div class="mt-4 flex items-end justify-between">
+            <span class="text-2xl font-semibold tracking-tight text-white">{s.value}</span>
+            <ArrowUpRight
+              class="h-4 w-4 text-[var(--color-muted)] transition group-hover:text-[var(--color-accent)]"
+            />
+          </div>
+        </a>
+      {:else}
+        <div
+          class="flex flex-col justify-between rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4"
+        >
+          <div class="flex items-center justify-between">
+            <span class="text-xs text-[var(--color-muted-foreground)]">{s.label}</span>
+            <s.icon class="h-4 w-4 text-[var(--color-muted)]" />
+          </div>
+          <div class="mt-4">
+            <span class="text-2xl font-semibold tracking-tight text-white">{s.value}</span>
+          </div>
         </div>
-        <div class="mt-4 flex items-end justify-between">
-          <span class="text-2xl font-semibold tracking-tight text-white">{s.value}</span>
-          <ArrowUpRight
-            class="h-4 w-4 text-[var(--color-muted)] transition group-hover:text-[var(--color-accent)]"
-          />
-        </div>
-      </a>
+      {/if}
     {/each}
   </section>
 
+  <!-- LLM Configuration — admin only -->
+  {#if isAdmin}
   <section class="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]">
     <div class="flex items-center justify-between border-b border-[var(--color-border)] px-5 py-4">
       <div>
@@ -136,6 +162,7 @@
       </div>
     </dl>
   </section>
+  {/if}
 
   <!-- RAG Health & AI Telemetry Dashboard -->
   <section class="grid grid-cols-1 lg:grid-cols-2 gap-4">

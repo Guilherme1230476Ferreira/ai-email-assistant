@@ -111,6 +111,19 @@ impl EmailRepository {
         Ok(record.count.unwrap_or(0))
     }
 
+    /// Delete an email by ID, scoped to the owning user for security.
+    /// Email embeddings are deleted via ON DELETE CASCADE.
+    pub async fn delete_email(&self, email_id: Uuid, user_id: Uuid) -> Result<bool, sqlx::Error> {
+        let result = sqlx::query(
+            "DELETE FROM emails WHERE id = $1 AND user_id = $2",
+        )
+        .bind(email_id)
+        .bind(user_id)
+        .execute(&*self.pool)
+        .await?;
+        Ok(result.rows_affected() > 0)
+    }
+
     pub async fn get_emails_paginated(
         &self,
         offset: i64,

@@ -56,8 +56,9 @@ impl UnifiedLlmService {
         } else {
             format!(
                 "You are an AI email assistant. You learn from the user's past email replies to mimic their tone and utilize their knowledge. \
-                \n\nHere is how the user previously replied to similar emails:\n{}\n\n\
-                Use the style and facts defined above to generate a polite and concise drafted reply to the following new incoming email. Return only the response text.",
+                You also have access to a knowledge base with relevant company/domain information.\
+                \n\nHere is the relevant context from past emails and the knowledge base:\n{}\n\n\
+                Use the style, facts, and knowledge provided above to generate a polite and concise drafted reply to the following new incoming email. Return only the response text.",
                 context
             )
         }

@@ -5,12 +5,12 @@ use utoipa_swagger_ui::SwaggerUi;
 
 use crate::{
     app_error::AppError,
-    handlers::{admin_handler, auth_handler, email_handler, role_handler, settings_handler},
+    handlers::{admin_handler, auth_handler, email_handler, knowledge_handler, role_handler, settings_handler},
     models::{
         domain::{Email, Role, User},
         dto::{
             CreateRoleRequest, CreateUserRequest, GenerateEmailRequest, LoginRequest,
-            LoginResponse, UpdateUserRoleRequest,
+            LoginResponse, UpdateUserRoleRequest, CreateQAPairRequest, KnowledgeEntryResponse,
         },
         settings_dto::{SettingsResponse, UpdateSettingsRequest, VerifySettingsRequest},
     },
@@ -32,10 +32,15 @@ use crate::{
         email_handler::generate_email_handler,
         email_handler::generate_email_stream_handler,
         email_handler::get_emails_handler,
+        email_handler::delete_email_handler,
         email_handler::get_telemetry_handler,
         settings_handler::get_settings_handler,
         settings_handler::update_settings_handler,
         settings_handler::verify_settings_handler,
+        knowledge_handler::create_qa_pair_handler,
+        knowledge_handler::upload_document_handler,
+        knowledge_handler::get_knowledge_entries_handler,
+        knowledge_handler::delete_knowledge_entry_handler,
         health,
     ),
     components(schemas(
@@ -54,6 +59,9 @@ use crate::{
         Role,
         User,
         Email,
+        crate::models::domain::KnowledgeEntry,
+        CreateQAPairRequest,
+        KnowledgeEntryResponse,
     )),
     tags(
         (name = "Admin", description = "Admin management endpoints"),
@@ -61,7 +69,8 @@ use crate::{
         (name = "Email", description = "Email generation endpoints"),
         (name = "Health", description = "Health check endpoint"),
         (name = "Role", description = "Role management endpoints"),
-        (name = "Admin Settings", description = "LLM Settings endpoints")
+        (name = "Admin Settings", description = "LLM Settings endpoints"),
+        (name = "Knowledge Base", description = "RAG knowledge management endpoints")
     ),
     modifiers(&SecurityAddon)
 )]
@@ -146,6 +155,10 @@ pub async fn create_router(app_state: AppState) -> Router {
             axum::routing::get(email_handler::get_emails_handler),
         )
         .route(
+            "/api/emails/:id",
+            axum::routing::delete(email_handler::delete_email_handler),
+        )
+        .route(
             "/api/telemetry",
             axum::routing::get(email_handler::get_telemetry_handler),
         )
@@ -157,6 +170,19 @@ pub async fn create_router(app_state: AppState) -> Router {
         .route(
             "/api/admin/settings/verify",
             axum::routing::post(settings_handler::verify_settings_handler),
+        )
+        .route(
+            "/api/knowledge",
+            axum::routing::get(knowledge_handler::get_knowledge_entries_handler)
+                .post(knowledge_handler::create_qa_pair_handler),
+        )
+        .route(
+            "/api/knowledge/upload",
+            axum::routing::post(knowledge_handler::upload_document_handler),
+        )
+        .route(
+            "/api/knowledge/:id",
+            axum::routing::delete(knowledge_handler::delete_knowledge_entry_handler),
         )
         .with_state(app_state);
 

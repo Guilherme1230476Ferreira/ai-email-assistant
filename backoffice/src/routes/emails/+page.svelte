@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { PageData } from './$types';
   import { invalidateAll } from '$app/navigation';
-  import { Sparkles, Search, X, Database, ChevronDown, ChevronUp, Copy, Check } from '@lucide/svelte';
+  import { Sparkles, Search, X, Database, ChevronDown, ChevronUp, Copy, Check, Trash2, Loader2 } from '@lucide/svelte';
   import { api } from '$lib/api';
   import { goto } from '$app/navigation';
 
@@ -20,6 +20,7 @@
   // Email detail expand state
   let expandedEmailId = $state<string | null>(null);
   let copiedEmailId = $state<string | null>(null);
+  let deletingEmailId = $state<string | null>(null);
 
   function openModal() {
     isModalOpen = true;
@@ -97,6 +98,23 @@
 
   function goToPage(page: number) {
       goto(`/emails?page=${page}&limit=${data.pagination.limit}`);
+  }
+
+  async function deleteEmail(id: string, e: Event) {
+      e.stopPropagation();
+      if (!confirm('Are you sure you want to delete this email?')) return;
+      deletingEmailId = id;
+      try {
+          const result = await api.deleteEmail(id);
+          if (result.error) {
+              console.error('Delete failed:', result.error);
+          } else {
+              if (expandedEmailId === id) expandedEmailId = null;
+              await invalidateAll();
+          }
+      } finally {
+          deletingEmailId = null;
+      }
   }
 
   let filteredEmails = $derived(
@@ -194,6 +212,21 @@
                         <div class="p-4 rounded-md bg-black/30 border border-[var(--color-border)] text-sm text-white whitespace-pre-wrap leading-relaxed relative group">
                             {email.generated_response}
                         </div>
+                    </div>
+                    <div class="flex items-center gap-2 mt-4 pt-3 border-t border-[var(--color-border)]/30">
+                        <button
+                            onclick={(e) => deleteEmail(email.id, e)}
+                            disabled={deletingEmailId === email.id}
+                            class="flex items-center gap-1.5 text-xs font-medium text-red-400/80 hover:text-red-400 transition-colors bg-red-500/5 hover:bg-red-500/10 px-3 py-1.5 rounded-md border border-red-500/20 hover:border-red-500/40 disabled:opacity-50 disabled:cursor-not-allowed ml-auto"
+                        >
+                            {#if deletingEmailId === email.id}
+                                <Loader2 class="w-3.5 h-3.5 animate-spin" />
+                                <span>Deleting...</span>
+                            {:else}
+                                <Trash2 class="w-3.5 h-3.5" />
+                                <span>Delete Email</span>
+                            {/if}
+                        </button>
                     </div>
                 </div>
             </div>

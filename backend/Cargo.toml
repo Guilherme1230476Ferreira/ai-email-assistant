@@ -13,7 +13,7 @@ path = "src/main.rs"
 
 [dependencies]
 # Web framework
-axum = { version = "0.7.5", features = ["macros"] }
+axum = { version = "0.7.5", features = ["macros", "multipart"] }
 tokio = { version = "1", features = ["full"] }
 tower-http = { version = "0.5.2", features = ["cors"] }
 
@@ -51,6 +51,11 @@ validator = "0.20.0"
 futures-util = "0.3.32"
 tokio-stream = "0.1.18"
 async-stream = "0.3"
+pdf-extract = "0.7"
+text-splitter = "0.16"
+
+# RAG Framework
+rig-core = { version = "0.36", features = ["derive"] }
 
 [dev-dependencies]
 tower = "0.5"

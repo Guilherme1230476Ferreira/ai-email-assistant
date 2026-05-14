@@ -23,14 +23,28 @@ export const load: LayoutServerLoad = async ({ cookies, fetch, url }) => {
 		}
 
 		const me = await res.json();
+
+		// Resolve the role name from role_id by fetching roles list
+		let roleName = 'user';
+		try {
+			const rolesRes = await fetch('/api/admin/roles', {
+				headers: { Authorization: `Bearer ${token}` }
+			});
+			if (rolesRes.ok) {
+				const roles = await rolesRes.json();
+				const match = roles.find((r: any) => r.id === me.role_id);
+				if (match) roleName = match.name.toLowerCase();
+			}
+		} catch {
+			// If roles fetch fails (non-admin user), default to 'user'
+		}
+
 		return {
-			// Pass the token value to the client so it can be stored in the
-			// in-memory auth store and used for client-side API calls.
 			token,
 			user: {
 				email: me.email as string,
 				initials: (me.email as string).substring(0, 2).toUpperCase(),
-				role: 'user' as string
+				role: roleName
 			}
 		};
 	} catch (e) {

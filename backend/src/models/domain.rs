@@ -60,3 +60,24 @@ pub struct AuditLog {
     pub metadata: Option<serde_json::Value>,
     pub created_at: DateTime<Utc>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow, utoipa::ToSchema)]
+pub struct KnowledgeEntry {
+    pub id: Uuid,
+    pub entry_type: String,
+    pub title: String,
+    pub content: String,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+/// A single chunk from a knowledge entry, with its embedding
+#[derive(Debug, Clone, FromRow)]
+pub struct KnowledgeChunk {
+    pub id: Uuid,
+    pub entry_id: Uuid,
+    pub chunk_text: String,
+    pub chunk_index: i32,
+    pub embedding: Option<Vector>,
+    pub created_at: DateTime<Utc>,
+}
