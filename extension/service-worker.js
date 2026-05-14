@@ -131,6 +131,7 @@ async function handleGenerateReply({ prompt }, tabId) {
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
+    let currentEventType = 'token'; // default event type
 
     while (true) {
       const { done, value } = await reader.read();
@@ -143,28 +144,42 @@ async function handleGenerateReply({ prompt }, tabId) {
       buffer = lines.pop(); // Keep incomplete line in buffer
 
       for (const line of lines) {
-        if (line.startsWith('event: ')) {
-          const eventType = line.slice(7).trim();
+        const trimmed = line.trim();
 
-          // The next data: line contains the payload
-          // SSE format: event: xxx\ndata: yyy\n\n
+        // Empty line = end of SSE event block, reset event type
+        if (!trimmed) {
+          currentEventType = 'token';
           continue;
         }
 
-        if (line.startsWith('data: ')) {
-          const data = line.slice(6);
+        // Track the event type for the next data: line
+        if (trimmed.startsWith('event: ')) {
+          currentEventType = trimmed.slice(7).trim();
+          continue;
+        }
 
-          // Determine event type from previous event line
-          // Default to 'token' if no event prefix was seen
-          chrome.tabs.sendMessage(tabId, {
-            type: 'GENERATE_TOKEN',
-            token: data,
-          });
+        if (trimmed.startsWith('data: ')) {
+          const data = trimmed.slice(6);
+
+          if (currentEventType === 'done' || data === '[DONE]') {
+            chrome.tabs.sendMessage(tabId, { type: 'GENERATE_DONE' });
+          } else if (currentEventType === 'error') {
+            chrome.tabs.sendMessage(tabId, {
+              type: 'GENERATE_ERROR',
+              error: data,
+            });
+          } else {
+            // Default: treat as token
+            chrome.tabs.sendMessage(tabId, {
+              type: 'GENERATE_TOKEN',
+              token: data,
+            });
+          }
         }
       }
     }
 
-    // Signal completion
+    // Signal completion (in case no explicit done event was sent)
     chrome.tabs.sendMessage(tabId, { type: 'GENERATE_DONE' });
   } catch (e) {
     chrome.tabs.sendMessage(tabId, {

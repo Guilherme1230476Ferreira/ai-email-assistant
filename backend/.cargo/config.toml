@@ -1,11 +1,1 @@
-# Cargo workspace configuration
-# Sets SQLX_OFFLINE=true so cargo build/check/test compiles using the .sqlx
-# query cache — no live database connection needed to compile.
-# This allows local development on Windows without Docker Desktop running.
-#
-# Note: #[sqlx::test] tests still need a live DB at runtime.
-# - On vs224 CI: PostgreSQL runs as a native systemd service (always on).
-# - Locally: start Docker Desktop + DB container, then run: cargo test
-
-[env]
-SQLX_OFFLINE = "true"
+# Empty — using default crates.io source

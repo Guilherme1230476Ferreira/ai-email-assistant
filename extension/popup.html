@@ -5,14 +5,16 @@
   <meta name="viewport" content="width=320">
   <title>MailMate</title>
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
-      width: 340px;
+      width: 360px;
       min-height: 200px;
       font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
-      background: #000000;
-      color: #ffffff;
+      background: #09090b;
+      color: #fafafa;
     }
 
     .container {
@@ -23,52 +25,63 @@
     .header {
       display: flex;
       align-items: center;
-      gap: 10px;
-      margin-bottom: 20px;
+      gap: 12px;
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
     }
 
     .logo {
       width: 36px;
       height: 36px;
-      background: #22d3ee;
-      border-radius: 10px;
+      background: #2dd4bf;
+      border-radius: 8px;
       display: flex;
       align-items: center;
       justify-content: center;
+      box-shadow: 0 0 16px rgba(45, 212, 191, 0.25);
     }
 
     .logo svg {
-      width: 20px;
-      height: 20px;
+      width: 18px;
+      height: 18px;
       color: #000;
     }
 
-    .header h1 {
-      font-size: 18px;
+    .header-text h1 {
+      font-size: 16px;
       font-weight: 700;
-      color: #22d3ee;
+      color: #fafafa;
+      letter-spacing: -0.02em;
+    }
+
+    .header-text span {
+      font-size: 11px;
+      color: #71717a;
+      font-weight: 500;
     }
 
     /* ── Status ──────────────────────────────────────────────────────── */
     .status {
       display: flex;
       align-items: center;
-      gap: 8px;
-      padding: 10px 14px;
-      border-radius: 10px;
-      margin-bottom: 16px;
+      gap: 10px;
+      padding: 12px 14px;
+      border-radius: 8px;
+      margin-bottom: 20px;
       font-size: 13px;
+      font-weight: 500;
     }
 
     .status-connected {
-      background: rgba(16, 185, 129, 0.1);
-      border: 1px solid rgba(16, 185, 129, 0.2);
+      background: rgba(16, 185, 129, 0.08);
+      border: 1px solid rgba(16, 185, 129, 0.15);
       color: #6ee7b7;
     }
 
     .status-disconnected {
-      background: rgba(239, 68, 68, 0.1);
-      border: 1px solid rgba(239, 68, 68, 0.2);
+      background: rgba(239, 68, 68, 0.06);
+      border: 1px solid rgba(239, 68, 68, 0.15);
       color: #fca5a5;
     }
 
@@ -79,42 +92,43 @@
       flex-shrink: 0;
     }
 
-    .status-connected .status-dot { background: #10b981; }
-    .status-disconnected .status-dot { background: #ef4444; }
+    .status-connected .status-dot { background: #10b981; box-shadow: 0 0 6px rgba(16, 185, 129, 0.5); }
+    .status-disconnected .status-dot { background: #ef4444; box-shadow: 0 0 6px rgba(239, 68, 68, 0.4); }
 
     /* ── Form ────────────────────────────────────────────────────────── */
     .form-group {
-      margin-bottom: 12px;
+      margin-bottom: 14px;
     }
 
     label {
       display: block;
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 600;
-      color: #67e8f9;
-      margin-bottom: 4px;
+      color: #a1a1aa;
+      margin-bottom: 6px;
       text-transform: uppercase;
-      letter-spacing: 0.05em;
+      letter-spacing: 0.06em;
     }
 
     input {
       width: 100%;
       padding: 10px 12px;
-      border: 1px solid #1f1f23;
+      border: 1px solid rgba(255, 255, 255, 0.08);
       border-radius: 8px;
-      background: #0a0a0a;
-      color: #ffffff;
+      background: rgba(255, 255, 255, 0.03);
+      color: #fafafa;
+      font-family: 'Inter', sans-serif;
       font-size: 14px;
       outline: none;
-      transition: border-color 0.2s;
+      transition: border-color 0.2s, box-shadow 0.2s;
     }
 
     input:focus {
-      border-color: #22d3ee;
-      box-shadow: 0 0 0 3px rgba(34, 211, 238, 0.1);
+      border-color: #2dd4bf;
+      box-shadow: 0 0 0 3px rgba(45, 212, 191, 0.1);
     }
 
-    input::placeholder { color: #71717a; }
+    input::placeholder { color: #52525b; }
 
     /* ── Buttons ─────────────────────────────────────────────────────── */
     .btn {
@@ -122,6 +136,7 @@
       padding: 10px;
       border: none;
       border-radius: 8px;
+      font-family: 'Inter', sans-serif;
       font-size: 14px;
       font-weight: 600;
       cursor: pointer;
@@ -129,13 +144,14 @@
     }
 
     .btn-primary {
-      background: #22d3ee;
+      background: #2dd4bf;
       color: #000000;
+      letter-spacing: -0.01em;
     }
 
     .btn-primary:hover {
-      background: #06b6d4;
-      box-shadow: 0 4px 12px rgba(34, 211, 238, 0.3);
+      background: #14b8a6;
+      box-shadow: 0 4px 16px rgba(45, 212, 191, 0.3);
     }
 
     .btn-primary:disabled {
@@ -145,21 +161,27 @@
 
     .btn-ghost {
       background: transparent;
-      color: #a5f3fc;
-      border: 1px solid #1f1f23;
-      margin-top: 8px;
+      color: #a1a1aa;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      margin-top: 10px;
     }
 
     .btn-ghost:hover {
-      background: #111113;
-      border-color: #2a2a30;
+      background: rgba(255, 255, 255, 0.04);
+      border-color: rgba(255, 255, 255, 0.12);
+      color: #fafafa;
     }
 
     /* ── Error ───────────────────────────────────────────────────────── */
     .error {
       color: #fca5a5;
       font-size: 12px;
-      margin-top: 8px;
+      margin-top: 6px;
+      margin-bottom: 10px;
+      padding: 8px 10px;
+      border-radius: 6px;
+      background: rgba(239, 68, 68, 0.08);
+      border: 1px solid rgba(239, 68, 68, 0.15);
       display: none;
     }
 
@@ -167,8 +189,19 @@
 
     /* ── User Info ───────────────────────────────────────────────────── */
     .user-email {
-      font-weight: 500;
-      color: #22d3ee;
+      font-weight: 600;
+      color: #2dd4bf;
+    }
+
+    .info-text {
+      font-size: 13px;
+      color: #71717a;
+      line-height: 1.6;
+      margin-top: 12px;
+    }
+
+    .info-text strong {
+      color: #2dd4bf;
     }
 
     .hidden { display: none !important; }
@@ -179,11 +212,14 @@
     <!-- Header -->
     <div class="header">
       <div class="logo">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <path d="M12 3l1.912 5.813a2 2 0 0 0 1.272 1.278L21 12l-5.816 1.91a2 2 0 0 0-1.275 1.278L12 21l-1.91-5.812a2 2 0 0 0-1.277-1.278L3 12l5.813-1.91a2 2 0 0 0 1.278-1.277L12 3z"/>
         </svg>
       </div>
-      <h1>MailMate</h1>
+      <div class="header-text">
+        <h1>MailMate</h1>
+        <span>AI Email Assistant</span>
+      </div>
     </div>
 
     <!-- Connected State -->
@@ -192,9 +228,9 @@
         <div class="status-dot"></div>
         <span>Connected as <span id="user-email" class="user-email"></span></span>
       </div>
-      <p style="font-size: 13px; color: #a1a1aa; line-height: 1.5;">
-        Open Gmail, click <strong style="color:#22d3ee;">Reply</strong> on any email, then click the
-        <strong style="color:#22d3ee;">✨ Generate Reply</strong> button in the compose toolbar.
+      <p class="info-text">
+        Open Gmail, click <strong>Reply</strong> on any email, then click the
+        <strong>✨ Generate Reply</strong> button in the compose toolbar.
       </p>
       <button id="logout-btn" class="btn btn-ghost">Sign Out</button>
     </div>
@@ -203,13 +239,13 @@
     <div id="login-view">
       <div class="status status-disconnected">
         <div class="status-dot"></div>
-        <span>Not connected</span>
+        <span>Not connected — sign in to get started</span>
       </div>
 
       <form id="login-form">
         <div class="form-group">
           <label for="email">Email</label>
-          <input type="email" id="email" placeholder="admin@gmail.com" required>
+          <input type="email" id="email" placeholder="your@email.com" required>
         </div>
         <div class="form-group">
           <label for="password">Password</label>
