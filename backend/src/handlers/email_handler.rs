@@ -17,6 +17,7 @@ use crate::{
         dto::{GenerateEmailRequest, PaginatedResponse, PaginationParams},
     },
     repositories::{
+        audit_repo::AuditRepository,
         email_repo::EmailRepository,
         settings_repo::SettingsRepository,
     },
@@ -313,6 +314,7 @@ pub async fn generate_email_stream_handler(
 #[axum::debug_handler(state = AppState)]
 pub async fn delete_email_handler(
     State(email_repo): State<Arc<EmailRepository>>,
+    State(audit_repo): State<Arc<AuditRepository>>,
     auth_user: AuthUser,
     Path(id): Path<uuid::Uuid>,
 ) -> Result<impl IntoResponse, AppError> {
@@ -320,11 +322,17 @@ pub async fn delete_email_handler(
         .delete_email(id, auth_user.0.id)
         .await
         .map_err(|e| {
-            eprintln!("Email delete error: {:?}", e);
+            tracing::error!("Email delete error: {:?}", e);
             AppError::new(StatusCode::INTERNAL_SERVER_ERROR, "Failed to delete email")
         })?;
 
     if deleted {
+        let _ = audit_repo.create_log(
+            Some(auth_user.0.id),
+            "email.delete",
+            Some(serde_json::json!({ "email_id": id })),
+        ).await;
+
         Ok(StatusCode::NO_CONTENT)
     } else {
         Err(AppError::new(StatusCode::NOT_FOUND, "Email not found"))

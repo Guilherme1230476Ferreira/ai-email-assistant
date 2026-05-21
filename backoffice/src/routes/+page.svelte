@@ -1,23 +1,27 @@
 <script lang="ts">
   import { Mail, Users, Shield, Cpu, ArrowUpRight, Check, Activity, BarChart2 } from '@lucide/svelte';
   import type { PageData } from './$types';
+  import { locale, t, type Locale } from '$lib/i18n';
 
   let { data }: { data: PageData } = $props();
 
   const isAdmin = $derived(data.userRole === 'admin');
 
+  let currentLocale = $state<Locale>($locale);
+  locale.subscribe((val) => (currentLocale = val));
+
   // Stats cards: regular users see only Emails & LLM model
   let stats = $derived(
     isAdmin
       ? [
-          { label: 'Emails generated', value: data.stats.emailsCount.toString(), icon: Mail, href: '/emails' },
-          { label: 'Users', value: data.stats.usersCount.toString(), icon: Users, href: '/users' },
-          { label: 'Roles', value: data.stats.rolesCount.toString(), icon: Shield, href: '/roles' },
-          { label: 'LLM model', value: data.llm?.llm_model || 'Not set', icon: Cpu, href: '/settings' }
+          { label: t('dash.emails_generated', currentLocale), value: data.stats.emailsCount.toString(), icon: Mail, href: '/emails' },
+          { label: t('dash.users', currentLocale), value: data.stats.usersCount.toString(), icon: Users, href: '/users' },
+          { label: t('dash.roles', currentLocale), value: data.stats.rolesCount.toString(), icon: Shield, href: '/roles' },
+          { label: t('dash.llm_model', currentLocale), value: data.llm?.llm_model || t('dash.not_set', currentLocale), icon: Cpu, href: '/settings' }
         ]
       : [
-          { label: 'Emails generated', value: data.stats.emailsCount.toString(), icon: Mail, href: '/emails' },
-          { label: 'LLM model', value: data.llm?.llm_model || 'Not set', icon: Cpu, href: null }
+          { label: t('dash.emails_generated', currentLocale), value: data.stats.emailsCount.toString(), icon: Mail, href: '/emails' },
+          { label: t('dash.llm_model', currentLocale), value: data.llm?.llm_model || t('dash.not_set', currentLocale), icon: Cpu, href: null }
         ]
   );
 
@@ -70,9 +74,9 @@
 
 <div class="mx-auto w-full max-w-5xl space-y-10">
   <header class="flex flex-col gap-1">
-    <h1 class="text-2xl font-semibold tracking-tight text-white">Dashboard</h1>
+    <h1 class="text-2xl font-semibold tracking-tight text-white">{t('dash.title', currentLocale)}</h1>
     <p class="text-sm text-[var(--color-muted-foreground)]">
-      {isAdmin ? 'Administration overview of your AI email assistant.' : 'Overview of your AI email assistant.'}
+      {isAdmin ? t('dash.subtitle_admin', currentLocale) : t('dash.subtitle_user', currentLocale)}
     </p>
   </header>
 
@@ -115,7 +119,7 @@
   <section class="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]">
     <div class="flex items-center justify-between border-b border-[var(--color-border)] px-5 py-4">
       <div>
-        <h2 class="text-sm font-medium text-white">LLM configuration</h2>
+        <h2 class="text-sm font-medium text-white">{t('dash.llm_config', currentLocale)}</h2>
         <p class="text-xs text-[var(--color-muted-foreground)]">
           Used by <code class="text-[var(--color-muted-foreground)]">/api/emails/generate</code>
         </p>
@@ -132,15 +136,15 @@
       class="grid grid-cols-1 divide-y divide-[var(--color-border)] sm:grid-cols-2 sm:divide-x sm:divide-y-0"
     >
       <div class="px-5 py-4">
-        <dt class="text-[11px] uppercase tracking-wider text-[var(--color-muted)]">Model</dt>
+        <dt class="text-[11px] uppercase tracking-wider text-[var(--color-muted)]">{t('dash.model', currentLocale)}</dt>
         <dd class="mt-1 font-mono text-sm text-white">{llmConfig.model}</dd>
       </div>
       <div class="px-5 py-4">
-        <dt class="text-[11px] uppercase tracking-wider text-[var(--color-muted)]">Base URL</dt>
+        <dt class="text-[11px] uppercase tracking-wider text-[var(--color-muted)]">{t('dash.base_url', currentLocale)}</dt>
         <dd class="mt-1 truncate font-mono text-sm text-white">{llmConfig.base_url}</dd>
       </div>
       <div class="px-5 py-4">
-        <dt class="text-[11px] uppercase tracking-wider text-[var(--color-muted)]">API key</dt>
+        <dt class="text-[11px] uppercase tracking-wider text-[var(--color-muted)]">{t('dash.api_key', currentLocale)}</dt>
         <dd class="mt-1 flex items-center gap-2 text-sm text-white">
           {#if llmConfig.has_api_key}
             <span
@@ -148,15 +152,15 @@
             >
               <Check class="h-3 w-3" strokeWidth={3} />
             </span>
-            <span>Configured</span>
+            <span>{t('dash.configured', currentLocale)}</span>
           {:else}
-            <span class="text-[var(--color-warning)]">Not set</span>
+            <span class="text-[var(--color-warning)]">{t('dash.missing', currentLocale)}</span>
           {/if}
         </dd>
       </div>
       <div class="px-5 py-4">
         <dt class="text-[11px] uppercase tracking-wider text-[var(--color-muted)]">
-          Embedding model
+          {t('dash.embedding_model', currentLocale)}
         </dt>
         <dd class="mt-1 font-mono text-sm text-white">{llmConfig.embedding_model}</dd>
       </div>
@@ -172,7 +176,7 @@
         <div>
           <h2 class="text-sm font-medium text-white flex items-center gap-2">
             <Activity class="h-4 w-4 text-[var(--color-accent)]" />
-            RAG Context Health
+            {t('dash.rag_health', currentLocale)}
           </h2>
           <p class="text-xs text-[var(--color-muted-foreground)] mt-1">Accuracy vs Hallucination bounds</p>
         </div>
@@ -211,17 +215,17 @@
 
           <!-- Axis Labels Overlay -->
           <div class="absolute inset-0 pointer-events-none p-2 flex flex-col justify-between">
-            <span class="text-[9px] text-blue-400 font-bold uppercase text-center block mt-1 tracking-wider absolute top-2 left-1/2 -translate-x-1/2">Context Depth</span>
+            <span class="text-[9px] text-blue-400 font-bold uppercase text-center block mt-1 tracking-wider absolute top-2 left-1/2 -translate-x-1/2">{t('dash.context_depth', currentLocale)}</span>
             <div class="flex justify-between w-full mt-auto mb-2 px-2 absolute bottom-2 left-0">
-               <span class="text-[9px] text-emerald-400 font-bold uppercase tracking-wider">Similarity</span>
-               <span class="text-[9px] text-rose-400 font-bold uppercase tracking-wider">Accuracy</span>
+               <span class="text-[9px] text-emerald-400 font-bold uppercase tracking-wider">{t('dash.similarity', currentLocale)}</span>
+               <span class="text-[9px] text-rose-400 font-bold uppercase tracking-wider">{t('dash.accuracy', currentLocale)}</span>
             </div>
           </div>
         </div>
 
 <div class="grid grid-cols-3 gap-2 text-center border-t border-[var(--color-border)] pt-3">
           <div class="flex flex-col">
-            <span class="text-[10px] text-[var(--color-muted-foreground)]">Context Depth</span>
+            <span class="text-[10px] text-[var(--color-muted-foreground)]">{t('dash.context_depth', currentLocale)}</span>
             <span class="text-xs font-bold text-white">{ragMetrics.contextRetrievalRate}</span>
           </div>
           <div class="flex flex-col border-x border-[var(--color-border)]">
@@ -241,26 +245,26 @@
       <div>
         <h2 class="text-sm font-medium text-white flex items-center gap-2">
           <BarChart2 class="h-4 w-4 text-[var(--color-accent)]" />
-          AI Execution Telemetry
+          {t('dash.telemetry', currentLocale)}
         </h2>
         <p class="text-xs text-[var(--color-muted-foreground)] mt-1">Live metrics from your PostgreSQL Vector DB</p>
       </div>
 
       <div class="grid grid-cols-2 gap-4 mt-6">
         <div class="p-3 rounded-md bg-[var(--color-surface-2)] flex flex-col gap-1">
-          <span class="text-[10px] text-[var(--color-muted-foreground)] uppercase font-semibold">Context Rate</span>
+          <span class="text-[10px] text-[var(--color-muted-foreground)] uppercase font-semibold">{t('dash.context_rate', currentLocale)}</span>
           <span class="text-lg font-bold text-white">{ragMetrics.contextRetrievalRate}</span>
         </div>
         <div class="p-3 rounded-md bg-[var(--color-surface-2)] flex flex-col gap-1">
-          <span class="text-[10px] text-[var(--color-muted-foreground)] uppercase font-semibold">Tokens Processed</span>
+          <span class="text-[10px] text-[var(--color-muted-foreground)] uppercase font-semibold">{t('dash.tokens_processed', currentLocale)}</span>
           <span class="text-lg font-bold text-white">{ragMetrics.tokensSaved.toLocaleString()}</span>
         </div>
         <div class="p-3 rounded-md bg-[var(--color-surface-2)] flex flex-col gap-1">
-          <span class="text-[10px] text-[var(--color-muted-foreground)] uppercase font-semibold">Avg. Similarity</span>
+          <span class="text-[10px] text-[var(--color-muted-foreground)] uppercase font-semibold">{t('dash.avg_similarity', currentLocale)}</span>
           <span class="text-lg font-bold text-[var(--color-accent)]">{ragMetrics.avgSimilarityScore}</span>
         </div>
         <div class="p-3 rounded-md bg-[var(--color-surface-2)] flex flex-col gap-1">
-          <span class="text-[10px] text-[var(--color-muted-foreground)] uppercase font-semibold">Knowledge Matches</span>
+          <span class="text-[10px] text-[var(--color-muted-foreground)] uppercase font-semibold">{t('dash.knowledge_matches', currentLocale)}</span>
           <span class="text-lg font-bold text-white">{ragMetrics.knowledgeMatches}</span>
         </div>
       </div>
@@ -270,11 +274,11 @@
   <section class="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]">
     <div class="flex items-center justify-between border-b border-[var(--color-border)] px-5 py-4">
       <div>
-        <h2 class="text-sm font-medium text-white">Recent generations</h2>
+        <h2 class="text-sm font-medium text-white">{t('dash.recent', currentLocale)}</h2>
         <p class="text-xs text-[var(--color-muted-foreground)]">Latest AI-drafted replies.</p>
       </div>
       <a href="/emails" class="text-xs font-medium text-[var(--color-accent)] hover:underline">
-        View all
+        {t('dash.view_all', currentLocale)}
       </a>
     </div>
 
@@ -296,7 +300,7 @@
         </li>
       {:else}
         <li class="px-5 py-10 text-center text-sm text-[var(--color-muted-foreground)]">
-          No emails generated yet.
+          {t('dash.no_emails', currentLocale)}
         </li>
       {/each}
     </ul>

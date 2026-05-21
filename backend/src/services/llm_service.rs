@@ -51,15 +51,20 @@ impl UnifiedLlmService {
     }
 
     fn build_system_prompt(context: &str) -> String {
+        let language_instruction = "IMPORTANT: Detect the language of the incoming email. If the email is written in Portuguese, reply entirely in Portuguese. If it is written in English, reply entirely in English. Always match the language of the sender.";
+
         if context.is_empty() {
-            "You are a professional and helpful AI email assistant. Draft a polite, concise, and appropriate reply to the following received email from a client/colleague. Return only the direct text of the response you draft.".to_string()
+            format!(
+                "You are a professional and helpful AI email assistant. Draft a polite, concise, and appropriate reply to the following received email from a client/colleague. Return only the direct text of the response you draft.\n\n{}",
+                language_instruction
+            )
         } else {
             format!(
                 "You are an AI email assistant. You learn from the user's past email replies to mimic their tone and utilize their knowledge. \
                 You also have access to a knowledge base with relevant company/domain information.\
                 \n\nHere is the relevant context from past emails and the knowledge base:\n{}\n\n\
-                Use the style, facts, and knowledge provided above to generate a polite and concise drafted reply to the following new incoming email. Return only the response text.",
-                context
+                Use the style, facts, and knowledge provided above to generate a polite and concise drafted reply to the following new incoming email. Return only the response text.\n\n{}",
+                context, language_instruction
             )
         }
     }
@@ -298,6 +303,7 @@ mod tests {
         let prompt = UnifiedLlmService::build_system_prompt("");
         assert!(prompt.contains("professional and helpful AI email assistant"));
         assert!(prompt.contains("Draft a polite, concise"));
+        assert!(prompt.contains("Detect the language"));
     }
 
     #[test]
@@ -306,5 +312,6 @@ mod tests {
         let prompt = UnifiedLlmService::build_system_prompt(context);
         assert!(prompt.contains("learn from the user's past email replies"));
         assert!(prompt.contains(context));
+        assert!(prompt.contains("Detect the language"));
     }
 }

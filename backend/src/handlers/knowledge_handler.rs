@@ -15,9 +15,9 @@ use axum::{
 
 use crate::{
     app_error::AppError,
-    middleware::auth::AuthUser,
+    middleware::rbac::AdminUser,
     models::dto::{CreateQAPairRequest, KnowledgeEntryResponse, PaginatedResponse, PaginationParams},
-    repositories::knowledge_repo::KnowledgeRepository,
+    repositories::{audit_repo::AuditRepository, knowledge_repo::KnowledgeRepository},
     services::rig_service::RigRagService,
 };
 
@@ -49,7 +49,8 @@ fn extract_pdf_text(bytes: &[u8]) -> Result<String, AppError> {
 pub async fn create_qa_pair_handler(
     State(knowledge_repo): State<Arc<KnowledgeRepository>>,
     State(rig_service): State<Arc<RigRagService>>,
-    _auth_user: AuthUser,
+    State(audit_repo): State<Arc<AuditRepository>>,
+    admin: AdminUser,
     Json(request): Json<CreateQAPairRequest>,
 ) -> Result<impl IntoResponse, AppError> {
     // 1. Create the entry
@@ -57,7 +58,7 @@ pub async fn create_qa_pair_handler(
         .create_entry("qa_pair", &request.question, &request.answer)
         .await
         .map_err(|e| {
-            eprintln!("Knowledge repo error: {:?}", e);
+            tracing::error!("Knowledge repo error: {:?}", e);
             AppError::new(StatusCode::INTERNAL_SERVER_ERROR, "Failed to create Q&A pair")
         })?;
 
@@ -76,6 +77,16 @@ pub async fn create_qa_pair_handler(
             knowledge_repo.create_chunk(entry.id, &request.answer, 0, None).await.ok();
         }
     }
+
+    // 3. Audit log
+    let _ = audit_repo.create_log(
+        Some(admin.0.id),
+        "knowledge.create_qa",
+        Some(serde_json::json!({
+            "entry_id": entry.id,
+            "question": request.question
+        })),
+    ).await;
 
     let response = KnowledgeEntryResponse {
         id: entry.id,
@@ -107,7 +118,8 @@ pub async fn create_qa_pair_handler(
 pub async fn upload_document_handler(
     State(knowledge_repo): State<Arc<KnowledgeRepository>>,
     State(rig_service): State<Arc<RigRagService>>,
-    _auth_user: AuthUser,
+    State(audit_repo): State<Arc<AuditRepository>>,
+    admin: AdminUser,
     mut multipart: Multipart,
 ) -> Result<impl IntoResponse, AppError> {
     let mut file_name = String::from("untitled");
@@ -168,7 +180,7 @@ pub async fn upload_document_handler(
         .create_entry("document", &file_name, &text)
         .await
         .map_err(|e| {
-            eprintln!("Knowledge repo error: {:?}", e);
+            tracing::error!("Knowledge repo error: {:?}", e);
             AppError::new(StatusCode::INTERNAL_SERVER_ERROR, "Failed to create document entry")
         })?;
 
@@ -193,6 +205,17 @@ pub async fn upload_document_handler(
             }
         }
     }
+
+    // Audit log
+    let _ = audit_repo.create_log(
+        Some(admin.0.id),
+        "knowledge.upload_document",
+        Some(serde_json::json!({
+            "entry_id": entry.id,
+            "filename": file_name,
+            "chunks": chunk_count
+        })),
+    ).await;
 
     let response = KnowledgeEntryResponse {
         id: entry.id,
@@ -223,7 +246,7 @@ pub async fn upload_document_handler(
 #[axum::debug_handler(state = crate::state::AppState)]
 pub async fn get_knowledge_entries_handler(
     State(knowledge_repo): State<Arc<KnowledgeRepository>>,
-    _auth_user: AuthUser,
+    _admin: AdminUser,
     Query(pagination): Query<PaginationParams>,
 ) -> Result<impl IntoResponse, AppError> {
     let (offset, limit) = pagination.offset_limit();
@@ -272,15 +295,22 @@ pub async fn get_knowledge_entries_handler(
 #[axum::debug_handler(state = crate::state::AppState)]
 pub async fn delete_knowledge_entry_handler(
     State(knowledge_repo): State<Arc<KnowledgeRepository>>,
-    _auth_user: AuthUser,
+    State(audit_repo): State<Arc<AuditRepository>>,
+    admin: AdminUser,
     Path(id): Path<uuid::Uuid>,
 ) -> Result<impl IntoResponse, AppError> {
     let deleted = knowledge_repo.delete_entry(id).await.map_err(|e| {
-        eprintln!("Knowledge delete error: {:?}", e);
+        tracing::error!("Knowledge delete error: {:?}", e);
         AppError::new(StatusCode::INTERNAL_SERVER_ERROR, "Failed to delete entry")
     })?;
 
     if deleted {
+        let _ = audit_repo.create_log(
+            Some(admin.0.id),
+            "knowledge.delete_entry",
+            Some(serde_json::json!({ "entry_id": id })),
+        ).await;
+
         Ok(StatusCode::NO_CONTENT)
     } else {
         Err(AppError::new(StatusCode::NOT_FOUND, "Entry not found"))

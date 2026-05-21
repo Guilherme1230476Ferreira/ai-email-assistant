@@ -3,10 +3,11 @@
   import { enhance } from '$app/forms';
   import { page } from '$app/state';
   import { authToken } from '$lib/stores/auth';
+  import { locale, t, type Locale } from '$lib/i18n';
   import {
     LayoutDashboard, Mail, Users, Shield, Settings,
     LogOut, Sparkles, Menu, X, ShieldAlert, BookOpen,
-    ChevronsLeft, ChevronsRight
+    ChevronsLeft, ChevronsRight, Globe
   } from '@lucide/svelte';
 
   let { children, data } = $props();
@@ -22,16 +23,24 @@
   const userRole = $derived(data.user?.role || 'user');
   const isAdmin = $derived(userRole === 'admin');
 
-  type NavItem = { label: string; href: string; icon: typeof LayoutDashboard; adminOnly?: boolean };
+  // Current locale for reactive translations
+  let currentLocale = $state<Locale>($locale);
+  locale.subscribe((val) => (currentLocale = val));
+
+  function toggleLocale() {
+    locale.set(currentLocale === 'en' ? 'pt' : 'en');
+  }
+
+  type NavItem = { key: string; href: string; icon: typeof LayoutDashboard; adminOnly?: boolean };
 
   const allNav: NavItem[] = [
-    { label: 'Dashboard', href: '/', icon: LayoutDashboard },
-    { label: 'Emails',    href: '/emails', icon: Mail },
-    { label: 'Users',     href: '/users',  icon: Users,  adminOnly: true },
-    { label: 'Roles',     href: '/roles',  icon: Shield, adminOnly: true },
-    { label: 'Settings',  href: '/settings', icon: Settings, adminOnly: true },
-    { label: 'Knowledge Base', href: '/knowledge', icon: BookOpen, adminOnly: true },
-    { label: 'Audit Logs', href: '/audit-logs', icon: ShieldAlert, adminOnly: true }
+    { key: 'nav.dashboard', href: '/', icon: LayoutDashboard },
+    { key: 'nav.emails',    href: '/emails', icon: Mail },
+    { key: 'nav.users',     href: '/users',  icon: Users,  adminOnly: true },
+    { key: 'nav.roles',     href: '/roles',  icon: Shield, adminOnly: true },
+    { key: 'nav.settings',  href: '/settings', icon: Settings, adminOnly: true },
+    { key: 'nav.knowledge', href: '/knowledge', icon: BookOpen, adminOnly: true },
+    { key: 'nav.audit',     href: '/audit-logs', icon: ShieldAlert, adminOnly: true }
   ];
 
   // Filter nav items based on user role
@@ -93,7 +102,7 @@
           {@const active = isActive(item.href)}
           <li>
             <a href={item.href}
-              title={sidebarCollapsed ? item.label : undefined}
+              title={sidebarCollapsed ? t(item.key, currentLocale) : undefined}
               class="group relative flex items-center rounded-md transition
                 {sidebarCollapsed ? 'justify-center px-2 py-2.5' : 'gap-3 px-3 py-2'}
                 {active
@@ -104,7 +113,7 @@
               {/if}
               <item.icon class="h-4 w-4 shrink-0 {active ? 'text-[var(--color-accent)]' : 'text-[var(--color-muted)] group-hover:text-white'}" />
               {#if !sidebarCollapsed}
-                <span class="font-medium text-sm">{item.label}</span>
+                <span class="font-medium text-sm">{t(item.key, currentLocale)}</span>
               {/if}
             </a>
           </li>
@@ -112,8 +121,26 @@
       </ul>
     </nav>
 
-    <!-- Collapse toggle (desktop only) -->
-    <div class="hidden lg:flex border-t border-[var(--color-border)] p-2 {sidebarCollapsed ? 'justify-center' : 'justify-end'}">
+    <!-- Collapse toggle + Language toggle (desktop only) -->
+    <div class="hidden lg:flex items-center border-t border-[var(--color-border)] p-2 {sidebarCollapsed ? 'flex-col gap-1' : 'justify-between'}">
+      <!-- Language toggle -->
+      <button type="button" aria-label="Toggle language"
+        onclick={toggleLocale}
+        title={currentLocale === 'en' ? 'Switch to Portuguese' : 'Mudar para Inglês'}
+        class="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[var(--color-muted)] hover:bg-[var(--color-surface-2)] hover:text-white transition-colors">
+        <Globe class="h-3.5 w-3.5" />
+        {#if !sidebarCollapsed}
+          <span class="text-[11px] font-bold tracking-wider">
+            <span class="{currentLocale === 'en' ? 'text-[var(--color-accent)]' : 'text-[var(--color-muted)]'}">EN</span>
+            <span class="text-[var(--color-muted)] mx-0.5">|</span>
+            <span class="{currentLocale === 'pt' ? 'text-[var(--color-accent)]' : 'text-[var(--color-muted)]'}">PT</span>
+          </span>
+        {:else}
+          <span class="text-[10px] font-bold text-[var(--color-accent)]">{currentLocale.toUpperCase()}</span>
+        {/if}
+      </button>
+
+      <!-- Collapse toggle -->
       <button type="button" aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         onclick={toggleCollapse}
         class="rounded-md p-1.5 text-[var(--color-muted)] hover:bg-[var(--color-surface-2)] hover:text-white transition-colors">
@@ -139,7 +166,7 @@
             </div>
             <!-- Logout -->
             <form method="POST" action="/logout" use:enhance>
-              <button type="submit" aria-label="Sign out"
+              <button type="submit" aria-label={t('nav.signout', currentLocale)}
                 class="rounded-md p-1.5 text-[var(--color-muted)] hover:bg-[var(--color-surface-2)] hover:text-white">
                 <LogOut class="h-4 w-4" />
               </button>
@@ -148,7 +175,7 @@
         </div>
         {#if sidebarCollapsed}
           <form method="POST" action="/logout" use:enhance class="flex justify-center mt-1">
-            <button type="submit" aria-label="Sign out"
+            <button type="submit" aria-label={t('nav.signout', currentLocale)}
               class="rounded-md p-1.5 text-[var(--color-muted)] hover:bg-[var(--color-surface-2)] hover:text-white">
               <LogOut class="h-4 w-4" />
             </button>
@@ -156,7 +183,7 @@
         {/if}
       {:else}
         <div class="flex items-center justify-center rounded-md px-2 py-2">
-          <a href="/login" class="text-xs text-white hover:text-[var(--color-accent)]">Sign In</a>
+          <a href="/login" class="text-xs text-white hover:text-[var(--color-accent)]">{t('nav.signin', currentLocale)}</a>
         </div>
       {/if}
     </div>
@@ -170,19 +197,32 @@
         onclick={() => (mobileSidebarOpen = !mobileSidebarOpen)}>
         <Menu class="h-5 w-5" />
       </button>
+
+      <!-- Mobile language toggle -->
+      <button type="button" aria-label="Toggle language"
+        onclick={toggleLocale}
+        class="flex items-center gap-1 rounded-md px-2 py-1 text-[var(--color-muted)] hover:bg-[var(--color-surface-2)] hover:text-white transition-colors lg:hidden">
+        <Globe class="h-3.5 w-3.5" />
+        <span class="text-[11px] font-bold">
+          <span class="{currentLocale === 'en' ? 'text-[var(--color-accent)]' : ''}">EN</span>
+          <span class="mx-0.5">|</span>
+          <span class="{currentLocale === 'pt' ? 'text-[var(--color-accent)]' : ''}">PT</span>
+        </span>
+      </button>
+
       <div class="flex-1"></div>
       <div class="flex items-center gap-2 text-xs text-[var(--color-muted)]">
         {#if !isAdmin}
           <span class="inline-flex items-center gap-1.5 rounded-full bg-[var(--color-surface-2)] border border-[var(--color-border)] px-2.5 py-1 text-[10px] font-medium text-[var(--color-muted-foreground)]">
-            <Mail class="h-3 w-3" /> User
+            <Mail class="h-3 w-3" /> {t('header.user', currentLocale)}
           </span>
         {:else}
           <span class="inline-flex items-center gap-1.5 rounded-full bg-[var(--color-accent)]/10 border border-[var(--color-accent)]/20 px-2.5 py-1 text-[10px] font-medium text-[var(--color-accent)]">
-            <Shield class="h-3 w-3" /> Admin
+            <Shield class="h-3 w-3" /> {t('header.admin', currentLocale)}
           </span>
         {/if}
         <span class="inline-flex h-1.5 w-1.5 rounded-full bg-[var(--color-success)]"></span>
-        <span>Connected</span>
+        <span>{t('header.connected', currentLocale)}</span>
       </div>
     </header>
 
@@ -190,5 +230,6 @@
       {@render children()}
     </main>
   </div>
+
 </div>
 {/if}

@@ -186,9 +186,18 @@ pub async fn create_router(app_state: AppState) -> Router {
         )
         .with_state(app_state);
 
-    // CORS: allow the Chrome extension (from mail.google.com) to call the API
+    // CORS: restrict to known origins (backoffice, extension, dev)
     let cors = CorsLayer::new()
-        .allow_origin(Any)
+        .allow_origin([
+            "https://dreamy-swimwear-daffodil.ngrok-free.dev".parse().unwrap(),
+            "https://vs224.dei.isep.ipp.pt".parse().unwrap(),
+            "http://vs224.dei.isep.ipp.pt".parse().unwrap(),
+            "http://vs224.dei.isep.ipp.pt:2224".parse().unwrap(),
+            "http://vs224.dei.isep.ipp.pt:2226".parse().unwrap(),
+            "https://mail.google.com".parse().unwrap(),
+            "http://localhost:5173".parse().unwrap(),
+            "http://localhost:3000".parse().unwrap(),
+        ])
         .allow_methods(Any)
         .allow_headers(Any);
 
