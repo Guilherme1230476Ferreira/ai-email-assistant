@@ -35,31 +35,27 @@
   // Real Postgres-driven RAG health metrics
   let ragMetrics = $derived({
     contextRetrievalRate: Math.round((data.telemetry?.context_retrieval_rate || 0) * 100) + '%',
-    hallucinationRisk: Math.max(0, 100 - (data.telemetry?.avg_similarity_score || 0) * 100).toFixed(1) + '%',
+    kbHitRate: Math.round((data.telemetry?.kb_hit_rate || 0) * 100) + '%',
     avgSimilarityScore: (data.telemetry?.avg_similarity_score || 0).toFixed(2),
-    tokensSaved: data.telemetry?.tokens_saved || 0,
+    charsProcessed: data.telemetry?.chars_processed || 0,
     knowledgeMatches: data.telemetry?.knowledge_matches || 0
   });
 
   // Calculate the vertices of the knowledge triangle based on real pgvector metrics
+  // 3 distinct axes: Context Depth (top), Similarity (bottom-right), KB Hit Rate (bottom-left)
   let trianglePoints = $derived(() => {
-     let v1 = Math.min(1, data.telemetry?.context_retrieval_rate || 0.1); // Context Rate (Top)
-     let v2 = Math.min(1, data.telemetry?.avg_similarity_score || 0.1); // Similarity (Bottom Right)
-     let v3 = Math.max(0.1, data.telemetry?.avg_similarity_score || 0.1); // Accuracy proxy (Bottom Left)
+     let v1 = Math.min(1, data.telemetry?.context_retrieval_rate || 0.1); // Context Depth (Top)
+     let v2 = Math.min(1, data.telemetry?.avg_similarity_score || 0.1);   // Similarity (Bottom Right)
+     let v3 = Math.min(1, data.telemetry?.kb_hit_rate || 0.1);            // KB Hit Rate (Bottom Left)
      
-     // Base radius of the triangle boundaries
      const r = 40;
      
-     // Angles (in radians)
-     // Top: -90 degrees (-PI/2)
      let p1y = 50 - r * v1; 
      let p1x = 50;
      
-     // Bottom Right: 30 degrees (PI/6)
      let p2x = 50 + (r * v2 * 0.866);
      let p2y = 50 + (r * v2 * 0.5);
      
-     // Bottom Left: 150 degrees (5PI/6)
      let p3x = 50 - (r * v3 * 0.866);
      let p3y = 50 + (r * v3 * 0.5);
 
@@ -218,7 +214,7 @@
             <span class="text-[9px] text-blue-400 font-bold uppercase text-center block mt-1 tracking-wider absolute top-2 left-1/2 -translate-x-1/2">{t('dash.context_depth', currentLocale)}</span>
             <div class="flex justify-between w-full mt-auto mb-2 px-2 absolute bottom-2 left-0">
                <span class="text-[9px] text-emerald-400 font-bold uppercase tracking-wider">{t('dash.similarity', currentLocale)}</span>
-               <span class="text-[9px] text-rose-400 font-bold uppercase tracking-wider">{t('dash.accuracy', currentLocale)}</span>
+               <span class="text-[9px] text-rose-400 font-bold uppercase tracking-wider">{t('dash.kb_hit_rate', currentLocale)}</span>
             </div>
           </div>
         </div>
@@ -229,12 +225,12 @@
             <span class="text-xs font-bold text-white">{ragMetrics.contextRetrievalRate}</span>
           </div>
           <div class="flex flex-col border-x border-[var(--color-border)]">
-            <span class="text-[10px] text-[var(--color-muted-foreground)]">Similarity Avg.</span>
+            <span class="text-[10px] text-[var(--color-muted-foreground)]">{t('dash.avg_similarity', currentLocale)}</span>
             <span class="text-xs font-bold text-white">{ragMetrics.avgSimilarityScore}</span>
           </div>
           <div class="flex flex-col">
-            <span class="text-[10px] text-[var(--color-muted-foreground)]">Hallucination Risk</span>
-            <span class="text-xs font-bold text-rose-400">{ragMetrics.hallucinationRisk}</span>
+            <span class="text-[10px] text-[var(--color-muted-foreground)]">{t('dash.kb_hit_rate', currentLocale)}</span>
+            <span class="text-xs font-bold text-[var(--color-accent)]">{ragMetrics.kbHitRate}</span>
           </div>
         </div>
       </div>
@@ -256,8 +252,8 @@
           <span class="text-lg font-bold text-white">{ragMetrics.contextRetrievalRate}</span>
         </div>
         <div class="p-3 rounded-md bg-[var(--color-surface-2)] flex flex-col gap-1">
-          <span class="text-[10px] text-[var(--color-muted-foreground)] uppercase font-semibold">{t('dash.tokens_processed', currentLocale)}</span>
-          <span class="text-lg font-bold text-white">{ragMetrics.tokensSaved.toLocaleString()}</span>
+          <span class="text-[10px] text-[var(--color-muted-foreground)] uppercase font-semibold">{t('dash.chars_processed', currentLocale)}</span>
+          <span class="text-lg font-bold text-white">{ragMetrics.charsProcessed.toLocaleString()}</span>
         </div>
         <div class="p-3 rounded-md bg-[var(--color-surface-2)] flex flex-col gap-1">
           <span class="text-[10px] text-[var(--color-muted-foreground)] uppercase font-semibold">{t('dash.avg_similarity', currentLocale)}</span>

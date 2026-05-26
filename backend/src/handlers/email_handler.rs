@@ -147,7 +147,7 @@ pub async fn generate_email_handler(
     Ok((StatusCode::OK, Json(email)))
 }
 
-// ─── SSE Streaming Endpoint ──────────────────────────────────────────────────
+// SSE Streaming Endpoint
 
 #[utoipa::path(
     post,
@@ -178,119 +178,175 @@ pub async fn generate_email_stream_handler(
     >,
     AppError,
 > {
-    // 1. Settings + API key
+    // Pre-fetch settings + API key before the stream
     let settings = settings_repo.get_settings().await?;
     let api_key = settings_repo
         .get_decrypted_api_key()
         .await?
         .ok_or_else(|| AppError::new(StatusCode::BAD_REQUEST, "LLM API Key is not configured."))?;
 
-    // 2. Rig-powered RAG context retrieval
-    let mut context_str = String::new();
-    let mut prompt_embedding = None;
-
-    match rig_service.vector_index.embed_text(&request.prompt).await {
-        Ok(embedding_floats) => {
-            let vec = pgvector::Vector::from(embedding_floats.clone());
-
-            // Use Rig's unified context search (knowledge base + past emails)
-            if let Ok(results) = rig_service.vector_index
-                .search_all_context(&embedding_floats, auth_user.0.id, 5)
-                .await
-            {
-                for (i, ctx) in results.iter().enumerate() {
-                    context_str.push_str(&format!(
-                        "--- Context #{} [{}] (relevance: {:.2}):\n{}\n\n",
-                        i + 1, ctx.title, ctx.score, ctx.text
-                    ));
-                }
-            }
-
-            prompt_embedding = Some(vec);
-        }
-        Err(e) => {
-            eprintln!(
-                "Warning: Rig embedding failed, proceeding without context: {:?}",
-                e
-            );
-        }
-    }
-
-    // 3. Build the email entity for streaming
-    let email_to_generate = Email {
-        id: uuid::Uuid::new_v4(),
-        user_id: auth_user.0.id,
-        original_content: request.prompt.clone(),
-        generated_response: Some("".to_string()),
-        created_at: chrono::Utc::now(),
-        updated_at: chrono::Utc::now(),
-    };
-
-    // 4. Get the token stream from the LLM
-    let token_stream = llm_service
-        .generate_reply_stream(
-            &email_to_generate,
-            &context_str,
-            &settings.llm_base_url,
-            &settings.llm_model,
-            &api_key,
-        )
-        .await
-        .map_err(|e| {
-            eprintln!("LLM stream error: {:?}", e);
-            AppError::new(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Failed to start LLM stream",
-            )
-        })?;
-
-    // 5. Build the SSE stream: yield tokens, then save to DB on completion
     let user_id = auth_user.0.id;
     let prompt = request.prompt.clone();
+    let model_name = settings.llm_model.clone();
 
     let sse_stream = async_stream::stream! {
-        let mut full_response = String::new();
+        // Stage 1: Embedding
+        yield Ok::<_, std::convert::Infallible>(
+            axum::response::sse::Event::default().event("log").data("> [1/4] Embedding prompt with vector model...")
+        );
 
+        let mut context_str = String::new();
+        let mut prompt_embedding = None;
+        let mut kb_count: usize = 0;
+        let mut email_count: usize = 0;
+
+        match rig_service.vector_index.embed_text(&prompt).await {
+            Ok(embedding_floats) => {
+                let embed_dim = embedding_floats.len();
+                yield Ok(axum::response::sse::Event::default()
+                    .event("log")
+                    .data(format!("> [1/4] Embedding ready ({} dims)", embed_dim)));
+
+                let vec = pgvector::Vector::from(embedding_floats.clone());
+
+                // Stage 2: RAG search
+                yield Ok(axum::response::sse::Event::default()
+                    .event("log")
+                    .data("> [2/4] Searching knowledge base + past emails..."));
+
+                match rig_service.vector_index
+                    .search_all_context(&embedding_floats, user_id, 5)
+                    .await
+                {
+                    Ok(results) => {
+                        let mut total_score = 0.0f64;
+                        for ctx in &results {
+                            if ctx.title == "Past Email" {
+                                email_count += 1;
+                            } else {
+                                kb_count += 1;
+                            }
+                            total_score += ctx.score;
+                            context_str.push_str(&format!(
+                                "--- Context [{}] (relevance: {:.2}):\n{}\n\n",
+                                ctx.title, ctx.score, ctx.text
+                            ));
+                        }
+                        let avg_score = if !results.is_empty() {
+                            total_score / results.len() as f64
+                        } else {
+                            0.0
+                        };
+                        yield Ok(axum::response::sse::Event::default()
+                            .event("log")
+                            .data(format!(
+                                "> [2/4] Retrieved {} KB chunk{}, {} past email{} (avg similarity: {:.2})",
+                                kb_count,
+                                if kb_count != 1 { "s" } else { "" },
+                                email_count,
+                                if email_count != 1 { "s" } else { "" },
+                                avg_score
+                            )));
+                    }
+                    Err(e) => {
+                        yield Ok(axum::response::sse::Event::default()
+                            .event("log")
+                            .data(format!("> [2/4] Warning: vector search failed ({})", e.message())));
+                    }
+                }
+                prompt_embedding = Some(vec);
+            }
+            Err(e) => {
+                yield Ok(axum::response::sse::Event::default()
+                    .event("log")
+                    .data(format!("> [1/4] Warning: embedding failed ({}) -- proceeding without context", e.message())));
+            }
+        }
+
+        // Stage 3: LLM call
+        yield Ok(axum::response::sse::Event::default()
+            .event("log")
+            .data(format!("> [3/4] Calling {} ({} context chars)...",
+                model_name,
+                context_str.len()
+            )));
+
+        let email_to_generate = crate::models::domain::Email {
+            id: uuid::Uuid::new_v4(),
+            user_id,
+            original_content: prompt.clone(),
+            generated_response: Some(String::new()),
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+        };
+
+        let token_stream = match llm_service
+            .generate_reply_stream(
+                &email_to_generate,
+                &context_str,
+                &settings.llm_base_url,
+                &settings.llm_model,
+                &api_key,
+            )
+            .await
+        {
+            Ok(s) => s,
+            Err(e) => {
+                yield Ok(axum::response::sse::Event::default()
+                    .event("error")
+                    .data(format!("Failed to start LLM stream: {:?}", e)));
+                return;
+            }
+        };
+
+        // Stage 4: Stream tokens
+        yield Ok(axum::response::sse::Event::default()
+            .event("log")
+            .data("> [4/4] Streaming reply:"));
+
+        let mut full_response = String::new();
         futures_util::pin_mut!(token_stream);
+
         while let Some(chunk_result) = token_stream.next().await {
             match chunk_result {
                 Ok(token) => {
                     full_response.push_str(&token);
-                    let event = axum::response::sse::Event::default()
+                    yield Ok(axum::response::sse::Event::default()
                         .event("token")
-                        .data(token);
-                    yield Ok::<_, std::convert::Infallible>(event);
+                        .data(token));
                 }
                 Err(e) => {
-                    let event = axum::response::sse::Event::default()
+                    yield Ok(axum::response::sse::Event::default()
                         .event("error")
-                        .data(format!("{}", e.message()));
-                    yield Ok(event);
+                        .data(format!("{}", e.message())));
                     return;
                 }
             }
         }
 
-        // Stream done — save the email to DB
-        // Generate response embedding using Rig
+        // Embed response + save to DB
         let resp_embedding = match rig_service.embed_for_storage(&full_response).await {
             Ok(v) => Some(v),
             Err(_) => None,
         };
 
-        match email_repo.create_email(user_id, &prompt, &full_response, prompt_embedding, resp_embedding).await {
+        match email_repo
+            .create_email(user_id, &prompt, &full_response, prompt_embedding, resp_embedding)
+            .await
+        {
             Ok(email) => {
+                yield Ok(axum::response::sse::Event::default()
+                    .event("log")
+                    .data(format!("> Generation complete. Saved as #{}.", &email.id.to_string()[..8])));
                 let done_data = serde_json::json!({ "id": email.id.to_string() }).to_string();
-                let event = axum::response::sse::Event::default()
+                yield Ok(axum::response::sse::Event::default()
                     .event("done")
-                    .data(done_data);
-                yield Ok(event);
+                    .data(done_data));
             }
             Err(e) => {
-                let event = axum::response::sse::Event::default()
+                yield Ok(axum::response::sse::Event::default()
                     .event("error")
-                    .data(format!("Failed to save email: {:?}", e));
-                yield Ok(event);
+                    .data(format!("Failed to save email: {:?}", e)));
             }
         }
     };

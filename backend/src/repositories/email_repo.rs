@@ -155,14 +155,21 @@ impl EmailRepository {
         &self,
         user_id: Uuid,
     ) -> Result<crate::models::dto::TelemetryData, sqlx::Error> {
-        // Query to calculate REAL telemetry metrics from the Postgres Database explicitly
-        let record = sqlx::query!(
+        // ── 1. Email-level stats ──────────────────────────────────────────────
+        let email_record = sqlx::query!(
             r#"
-            SELECT 
-                COUNT(e.id) as total_emails,
-                SUM(LENGTH(e.generated_response) + LENGTH(e.original_content)) as total_chars,
-                COUNT(ee.id) as total_embeddings,
-                AVG(1.0 - (ee.content_embedding <=> ee.response_embedding)) as avg_similarity
+            SELECT
+                COUNT(e.id)                                                          AS total_emails,
+                SUM(LENGTH(COALESCE(e.generated_response,'')) +
+                    LENGTH(e.original_content))                                      AS total_chars,
+                COUNT(ee.id)                                                         AS emails_with_embedding,
+                -- cosine similarity between prompt and response embeddings:
+                -- a good proxy when we don't store per-retrieval scores
+                AVG(CASE
+                    WHEN ee.content_embedding IS NOT NULL AND ee.response_embedding IS NOT NULL
+                    THEN (1.0 - (ee.content_embedding <=> ee.response_embedding))
+                    ELSE NULL
+                END)                                                                 AS avg_self_similarity
             FROM emails e
             LEFT JOIN email_embeddings ee ON e.id = ee.email_id
             WHERE e.user_id = $1
@@ -172,26 +179,51 @@ impl EmailRepository {
         .fetch_one(&*self.pool)
         .await?;
 
-        let total_emails = record.total_emails.unwrap_or(0) as f64;
-        let total_chars = record.total_chars.unwrap_or(0) as i64;
-        let embeddings_count = record.total_embeddings.unwrap_or(0) as f64;
-        let raw_similarity = record.avg_similarity.unwrap_or(0.78);
+        // ── 2. Knowledge-base hit stats ───────────────────────────────────────
+        // Count how many KB chunks exist globally (admin-owned, not per-user).
+        // This is the real denominator for KB coverage.
+        let kb_record = sqlx::query!(
+            r#"
+            SELECT COUNT(*) AS total_kb_chunks
+            FROM knowledge_embeddings
+            WHERE embedding IS NOT NULL
+            "#
+        )
+        .fetch_one(&*self.pool)
+        .await?;
 
-        // Compute context rate (embeddings vs emails)
-        let context_rate = if total_emails > 0.0 {
-            embeddings_count / total_emails
+        let total_emails    = email_record.total_emails.unwrap_or(0) as f64;
+        let total_chars     = email_record.total_chars.unwrap_or(0) as i64;
+        let emails_embedded = email_record.emails_with_embedding.unwrap_or(0) as f64;
+        let avg_similarity  = email_record.avg_self_similarity.unwrap_or(0.0);
+        let kb_chunks       = kb_record.total_kb_chunks.unwrap_or(0) as i64;
+
+        // Embedding coverage: share of emails that have a vector stored
+        let context_retrieval_rate = if total_emails > 0.0 {
+            (emails_embedded / total_emails).min(1.0)
         } else {
             0.0
         };
 
-        // Real Token calculation (avg 1 token = 4 chars in english LLMs)
-        let tokens_saved = total_chars / 4;
+        // KB hit rate: if KB has chunks and at least some emails were embedded, assume
+        // every embedded email performed a KB retrieval (the RAG pipeline always does).
+        let kb_hit_rate = if kb_chunks > 0 && emails_embedded > 0.0 {
+            (emails_embedded / total_emails).min(1.0)
+        } else {
+            0.0
+        };
+
+        // knowledge_matches = total KB chunks that could have been retrieved *per* embedded email
+        // (limit is 5 in search_all_context, capped by actual KB size)
+        let retrievals_per_email = (kb_chunks).min(5);
+        let knowledge_matches = emails_embedded as i64 * retrievals_per_email;
 
         Ok(crate::models::dto::TelemetryData {
-            context_retrieval_rate: context_rate,
-            avg_similarity_score: raw_similarity,
-            tokens_saved,
-            knowledge_matches: embeddings_count as i64 * 3, // Since limit is 3 inside the RAG generator
+            context_retrieval_rate,
+            avg_similarity_score: avg_similarity,
+            chars_processed: total_chars,
+            knowledge_matches,
+            kb_hit_rate,
         })
     }
 

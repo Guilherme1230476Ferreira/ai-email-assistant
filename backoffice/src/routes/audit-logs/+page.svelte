@@ -2,8 +2,12 @@
   import type { PageData } from './$types';
   import { goto } from '$app/navigation';
   import { ShieldAlert, Search, FileText } from '@lucide/svelte';
+  import { locale, t, type Locale } from '$lib/i18n';
 
   let { data }: { data: PageData } = $props();
+
+  let currentLocale = $state<Locale>($locale);
+  locale.subscribe((val) => (currentLocale = val));
 
   let searchQuery = $state('');
   
@@ -28,7 +32,7 @@
 </script>
 
 <svelte:head>
-  <title>Audit Logs · MailMate</title>
+  <title>{t('audit.title', currentLocale)} · MailMate</title>
 </svelte:head>
 
 <div class="mx-auto w-full max-w-5xl space-y-8 pb-12">
@@ -36,9 +40,9 @@
     <div>
       <h1 class="text-2xl font-semibold tracking-tight text-white flex items-center gap-2">
         <ShieldAlert class="h-6 w-6 text-[var(--color-accent)]" />
-        Audit Logs
+        {t('audit.title', currentLocale)}
       </h1>
-      <p class="text-sm text-[var(--color-muted-foreground)]">System-wide record of administrative actions.</p>
+      <p class="text-sm text-[var(--color-muted-foreground)]">{t('audit.subtitle', currentLocale)}</p>
     </div>
 
     <div class="flex items-center gap-4">
@@ -47,7 +51,7 @@
         <input
           type="text"
           bind:value={searchQuery}
-          placeholder="Filter by action or user ID..."
+          placeholder={t('audit.search', currentLocale)}
           class="w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface-2)] py-2.5 pl-9 pr-4 text-sm text-white placeholder:text-[var(--color-muted)] focus:border-[var(--color-accent)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
         />
       </div>
@@ -59,10 +63,10 @@
         <table class="w-full text-left text-sm text-[var(--color-muted-foreground)]">
             <thead class="bg-[var(--color-surface-2)] text-xs uppercase text-[var(--color-muted)] border-b border-[var(--color-border)]">
                 <tr>
-                    <th scope="col" class="px-5 py-3 font-medium">Timestamp</th>
-                    <th scope="col" class="px-5 py-3 font-medium">Actor User ID</th>
-                    <th scope="col" class="px-5 py-3 font-medium">Action</th>
-                    <th scope="col" class="px-5 py-3 font-medium text-right">Details</th>
+                    <th scope="col" class="px-5 py-3 font-medium">{t('audit.timestamp', currentLocale)}</th>
+                    <th scope="col" class="px-5 py-3 font-medium">{t('audit.actor', currentLocale)}</th>
+                    <th scope="col" class="px-5 py-3 font-medium">{t('audit.action', currentLocale)}</th>
+                    <th scope="col" class="px-5 py-3 font-medium text-right">{t('audit.details', currentLocale)}</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-[var(--color-border)]">
@@ -72,7 +76,7 @@
                             {new Date(log.created_at).toLocaleString()}
                         </td>
                         <td class="px-5 py-4 font-mono text-xs text-white">
-                            {log.user_id || 'System'}
+                            {log.user_id || t('common.system', currentLocale)}
                         </td>
                         <td class="px-5 py-4">
                             <span class="inline-flex items-center rounded-full bg-[var(--color-surface-2)] px-2.5 py-0.5 text-xs font-semibold text-white border border-[var(--color-border)]">
@@ -83,10 +87,10 @@
                             <details class="cursor-pointer">
                                 <summary class="text-xs text-[var(--color-accent)] hover:text-[var(--color-accent-hover)] transition inline-flex items-center gap-1 list-none">
                                     <FileText class="w-3.5 h-3.5" />
-                                    <span>View JSON</span>
+                                    <span>{t('audit.view_json', currentLocale)}</span>
                                 </summary>
                                 <div class="absolute right-10 top-2 z-10 w-[400px] text-left p-3 rounded-md bg-black border border-[var(--color-border)] shadow-xl mt-2 hidden group-open:block group-focus-within:block max-h-[300px] overflow-y-auto">
-                                    <h4 class="text-xs uppercase font-bold text-[var(--color-muted)] mb-2">Payload Metadata</h4>
+                                    <h4 class="text-xs uppercase font-bold text-[var(--color-muted)] mb-2">{t('audit.payload', currentLocale)}</h4>
                                     <pre class="text-[10px] text-green-400 font-mono whitespace-pre-wrap leading-relaxed">{formatMetadata(log.metadata)}</pre>
                                 </div>
                             </details>
@@ -95,7 +99,7 @@
                 {:else}
                     <tr>
                         <td colspan="4" class="px-5 py-10 text-center text-sm">
-                            {searchQuery ? 'No matching logs found.' : 'No audit logs recorded yet.'}
+                            {searchQuery ? t('audit.no_match', currentLocale) : t('audit.no_logs', currentLocale)}
                         </td>
                     </tr>
                 {/each}
@@ -107,7 +111,7 @@
     {#if data.pagination && data.pagination.total > data.pagination.limit && !searchQuery}
         <div class="px-5 py-4 border-t border-[var(--color-border)] flex items-center justify-between bg-[var(--color-surface-2)]/30">
             <span class="text-sm text-[var(--color-muted-foreground)]">
-                Showing {((data.pagination.page - 1) * data.pagination.limit) + 1} to {Math.min(data.pagination.page * data.pagination.limit, data.pagination.total)} of {data.pagination.total} events
+                {t('audit.showing', currentLocale)} {((data.pagination.page - 1) * data.pagination.limit) + 1} {t('common.to', currentLocale)} {Math.min(data.pagination.page * data.pagination.limit, data.pagination.total)} {t('audit.of', currentLocale)} {data.pagination.total} {t('audit.events', currentLocale)}
             </span>
             <div class="flex gap-2">
                 <button 
@@ -115,14 +119,14 @@
                     onclick={() => goToPage(data.pagination.page - 1)}
                     class="px-3 py-1.5 rounded-md text-sm font-medium border border-[var(--color-border)] bg-[var(--color-surface)] text-white hover:bg-[var(--color-surface-2)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                    Previous
+                    {t('common.previous', currentLocale)}
                 </button>
                 <button 
                     disabled={data.pagination.page * data.pagination.limit >= data.pagination.total}
                     onclick={() => goToPage(data.pagination.page + 1)}
                     class="px-3 py-1.5 rounded-md text-sm font-medium border border-[var(--color-border)] bg-[var(--color-surface)] text-white hover:bg-[var(--color-surface-2)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                    Next
+                    {t('common.next', currentLocale)}
                 </button>
             </div>
         </div>

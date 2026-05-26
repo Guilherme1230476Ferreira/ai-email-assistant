@@ -3,8 +3,12 @@
   import { Save, Loader2, CheckCircle2, AlertCircle } from '@lucide/svelte';
   import { invalidateAll } from '$app/navigation';
   import { api } from '$lib/api';
+  import { locale, t, type Locale } from '$lib/i18n';
 
   let { data }: { data: PageData } = $props();
+
+  let currentLocale = $state<Locale>($locale);
+  locale.subscribe((val) => (currentLocale = val));
 
   let model = $state('');
   let baseUrl = $state('');
@@ -58,31 +62,31 @@
 </script>
 
 <svelte:head>
-  <title>Settings · MailMate</title>
+  <title>{t('settings.title', currentLocale)} · MailMate</title>
 </svelte:head>
 
 <div class="mx-auto w-full max-w-3xl space-y-8">
   <header class="flex flex-col gap-1">
-    <h1 class="text-2xl font-semibold tracking-tight text-white">Settings</h1>
-    <p class="text-sm text-[var(--color-muted-foreground)]">Configure the language model used for replies.</p>
+    <h1 class="text-2xl font-semibold tracking-tight text-white">{t('settings.title', currentLocale)}</h1>
+    <p class="text-sm text-[var(--color-muted-foreground)]">{t('settings.subtitle', currentLocale)}</p>
   </header>
 
   <div class="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
     <div class="space-y-4">
       <div>
-        <label for="model" class="mb-1.5 block text-xs font-medium text-[var(--color-muted-foreground)]">LLM Model</label>
+        <label for="model" class="mb-1.5 block text-xs font-medium text-[var(--color-muted-foreground)]">{t('settings.model', currentLocale)}</label>
         <input id="model" type="text" bind:value={model}
           class="w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface-2)] py-2 px-3 text-sm text-white focus:border-[var(--color-accent)] focus:outline-none" />
       </div>
 
       <div>
-        <label for="baseUrl" class="mb-1.5 block text-xs font-medium text-[var(--color-muted-foreground)]">Base URL</label>
+        <label for="baseUrl" class="mb-1.5 block text-xs font-medium text-[var(--color-muted-foreground)]">{t('settings.base_url', currentLocale)}</label>
         <input id="baseUrl" type="text" bind:value={baseUrl}
           class="w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface-2)] py-2 px-3 text-sm text-white focus:border-[var(--color-accent)] focus:outline-none" />
       </div>
 
       <div>
-        <label for="apiKey" class="mb-1.5 block text-xs font-medium text-[var(--color-muted-foreground)]">API Key</label>
+        <label for="apiKey" class="mb-1.5 block text-xs font-medium text-[var(--color-muted-foreground)]">{t('settings.api_key', currentLocale)}</label>
         <input id="apiKey" type="password" bind:value={apiKey}
           placeholder={data.settings?.has_api_key ? '••••••••' : 'Enter API Key'}
           class="w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface-2)] py-2 px-3 text-sm text-white focus:border-[var(--color-accent)] focus:outline-none" />
@@ -125,9 +129,9 @@
           class="flex items-center justify-center gap-2 rounded-md border border-[var(--color-border)] bg-transparent px-4 py-2 text-sm font-semibold text-white transition hover:bg-[var(--color-surface-2)] disabled:opacity-50"
         >
           {#if isTesting}
-            <Loader2 class="h-4 w-4 animate-spin" /> Testing...
+            <Loader2 class="h-4 w-4 animate-spin" /> {t('settings.verifying', currentLocale)}
           {:else}
-            Test connection
+            {t('settings.verify', currentLocale)}
           {/if}
         </button>
 
@@ -137,9 +141,9 @@
           class="flex items-center justify-center gap-2 rounded-md bg-[#2dd4bf] px-4 py-2 text-sm font-semibold text-black transition hover:bg-[#14b8a6] disabled:opacity-50"
         >
           {#if isSaving}
-            <Loader2 class="h-4 w-4 animate-spin" /> Saving...
+            <Loader2 class="h-4 w-4 animate-spin" /> {t('settings.saving', currentLocale)}
           {:else}
-            <Save class="h-4 w-4" /> Save changes
+            <Save class="h-4 w-4" /> {t('settings.save', currentLocale)}
           {/if}
         </button>
       </div>

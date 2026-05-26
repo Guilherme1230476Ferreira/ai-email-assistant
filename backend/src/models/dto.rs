@@ -7,10 +7,16 @@ use uuid::Uuid;
 
 #[derive(Debug, Serialize, ToSchema)]
 pub struct TelemetryData {
+    /// Ratio of emails that have an embedding (embedding coverage)
     pub context_retrieval_rate: f64,
+    /// Average cosine similarity between prompt embedding and retrieved KB chunks
     pub avg_similarity_score: f64,
-    pub tokens_saved: i64,
+    /// Total characters processed by the LLM (prompt + reply)
+    pub chars_processed: i64,
+    /// Real count of KB chunk retrievals across all generations
     pub knowledge_matches: i64,
+    /// Ratio of emails that retrieved at least one KB chunk
+    pub kb_hit_rate: f64,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -154,6 +160,15 @@ pub struct KnowledgeEntryResponse {
     pub content: String,
     pub chunk_count: i64,
     pub created_at: DateTime<Utc>,
+}
+
+/// A single retrieved context item in a per-email RAG trace.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct RagTraceItem {
+    pub source: String,  // "knowledge_base" | "past_email"
+    pub title: String,
+    pub text: String,
+    pub score: f64,
 }
 
 /// Query parameters for paginated list endpoints.

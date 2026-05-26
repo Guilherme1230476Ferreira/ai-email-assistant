@@ -3,7 +3,7 @@
   "name": "MailMate — AI Email Assistant",
   "version": "1.0.0",
   "description": "Generate smart email replies powered by AI. Click the ✨ button in Gmail to instantly draft a reply.",
-  "permissions": ["storage"],
+  "permissions": ["storage", "alarms"],
   "host_permissions": [
     "https://mail.google.com/*",
     "https://dreamy-swimwear-daffodil.ngrok-free.dev/*",

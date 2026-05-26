@@ -1,4 +1,4 @@
-﻿// =============================================================================
+// =============================================================================
 // MailMate â€” Content Script (injected into Gmail)
 //
 // 1. Watches for compose windows opening (MutationObserver)
@@ -223,14 +223,27 @@
       insertTokenIntoCompose(message.token);
     }
 
+    if (message.type === 'GENERATE_LOG') {
+      // Show real pipeline progress on the button
+      const msg = message.message || '';
+      let statusText = 'Generating...';
+      if (msg.includes('[1/4]')) statusText = 'Embedding...';
+      else if (msg.includes('[2/4]')) statusText = 'Searching KB...';
+      else if (msg.includes('[3/4]')) statusText = 'Calling LLM...';
+      else if (msg.includes('[4/4]')) statusText = 'Streaming...';
+      document.querySelectorAll('.mailmate-generate-btn.mailmate-loading .mailmate-btn-text').forEach((el) => {
+        el.textContent = statusText;
+      });
+    }
+
     if (message.type === 'GENERATE_DONE') {
       resetAllButtons();
-      showToast('âœ¨ Reply generated!');
+      showToast('✨ Reply generated!');
     }
 
     if (message.type === 'GENERATE_ERROR') {
       resetAllButtons();
-      showToast(`âŒ ${message.error}`, true);
+      showToast(`❌ ${message.error}`, true);
     }
   });
 

@@ -2,6 +2,7 @@
 /// Database pool and service initialization added in US-2.3.
 use std::sync::Arc;
 
+use chrono::{DateTime, Utc};
 use crate::infrastructure::config::Config;
 use crate::infrastructure::crypto::CryptoService;
 use crate::repositories::{
@@ -32,6 +33,8 @@ pub struct AppState {
     pub rate_limiters: Arc<
         tokio::sync::RwLock<std::collections::HashMap<std::net::IpAddr, Vec<std::time::Instant>>>,
     >,
+    /// Tracks last heartbeat timestamp per user from the Chrome extension
+    pub extension_pings: Arc<tokio::sync::RwLock<std::collections::HashMap<uuid::Uuid, DateTime<Utc>>>>,
 }
 
 impl FromRef<AppState> for Arc<UserRepository> {
@@ -140,6 +143,7 @@ impl AppState {
             config: Arc::new(config),
             rig_service,
             rate_limiters: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
+            extension_pings: Arc::new(tokio::sync::RwLock::new(std::collections::HashMap::new())),
         };
 
         Ok(app_state)

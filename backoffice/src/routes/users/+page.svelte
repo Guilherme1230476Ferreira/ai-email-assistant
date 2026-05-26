@@ -3,8 +3,12 @@
   import { invalidateAll, goto } from '$app/navigation';
   import { Plus, X, Loader2, Settings2, Trash2 } from '@lucide/svelte';
   import { api, type ApiUser, type ApiRole } from '$lib/api';
+  import { locale, t, type Locale } from '$lib/i18n';
 
   let { data }: { data: PageData } = $props();
+
+  let currentLocale = $state<Locale>($locale);
+  locale.subscribe((val) => (currentLocale = val));
 
   // ── Create user modal ──────────────────────────────────────────────────────
   let isCreateOpen = $state(false);
@@ -75,21 +79,21 @@
 </script>
 
 <svelte:head>
-  <title>Users · MailMate</title>
+  <title>{t('users.title', currentLocale)} · MailMate</title>
 </svelte:head>
 
 <div class="mx-auto w-full max-w-5xl space-y-8">
   <header class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
     <div>
-      <h1 class="text-2xl font-semibold tracking-tight text-white">Users</h1>
-      <p class="text-sm text-[var(--color-muted-foreground)]">Manage system users.</p>
+      <h1 class="text-2xl font-semibold tracking-tight text-white">{t('users.title', currentLocale)}</h1>
+      <p class="text-sm text-[var(--color-muted-foreground)]">{t('users.subtitle', currentLocale)}</p>
     </div>
     <button
       onclick={() => { isCreateOpen = true; createError = null; }}
       class="flex items-center gap-2 rounded-md bg-white px-4 py-2.5 text-sm font-semibold text-black transition hover:bg-gray-200"
     >
       <Plus class="h-4 w-4" />
-      Add User
+      {t('users.add', currentLocale)}
     </button>
   </header>
 
@@ -106,9 +110,9 @@
         <li class="flex items-center justify-between px-5 py-4 gap-4">
           <div class="min-w-0 flex-1">
             <p class="text-sm font-medium text-white truncate">{user.email}</p>
-            <p class="text-xs text-[var(--color-muted-foreground)] capitalize mt-0.5">
-              Role: <span class="text-[var(--color-accent)]">{roleName(user.role_id)}</span>
-            </p>
+          <p class="text-xs text-[var(--color-muted-foreground)] capitalize mt-0.5">
+            {t('users.role', currentLocale)}: <span class="text-[var(--color-accent)]">{roleName(user.role_id)}</span>
+          </p>
           </div>
           <div class="flex items-center gap-2 shrink-0">
             <button
@@ -116,7 +120,7 @@
               class="flex items-center gap-1.5 rounded-md border border-[var(--color-border)] px-3 py-1.5 text-xs font-medium text-white transition hover:border-[var(--color-accent)]/50 hover:text-[var(--color-accent)]"
             >
               <Settings2 class="h-3.5 w-3.5" />
-              Manage
+              {t('users.manage', currentLocale)}
             </button>
             <button
               onclick={() => handleDeleteUser(user.id)}
@@ -133,7 +137,7 @@
           </div>
         </li>
       {:else}
-        <li class="px-5 py-10 text-center text-sm text-[var(--color-muted-foreground)]">No users found.</li>
+        <li class="px-5 py-10 text-center text-sm text-[var(--color-muted-foreground)]">{t('users.no_users', currentLocale)}</li>
       {/each}
     </ul>
     
@@ -141,7 +145,7 @@
     {#if data.pagination && data.pagination.total > data.pagination.limit}
         <div class="px-5 py-4 border-t border-[var(--color-border)] flex items-center justify-between bg-[var(--color-surface-2)]/30">
             <span class="text-sm text-[var(--color-muted-foreground)]">
-                Showing {((data.pagination.page - 1) * data.pagination.limit) + 1} to {Math.min(data.pagination.page * data.pagination.limit, data.pagination.total)} of {data.pagination.total} users
+                {t('common.showing', currentLocale)} {((data.pagination.page - 1) * data.pagination.limit) + 1} {t('common.to', currentLocale)} {Math.min(data.pagination.page * data.pagination.limit, data.pagination.total)} {t('common.of', currentLocale)} {data.pagination.total} {t('users.title', currentLocale).toLowerCase()}
             </span>
             <div class="flex gap-2">
                 <button 
@@ -149,14 +153,14 @@
                     onclick={() => goToPage(data.pagination.page - 1)}
                     class="px-3 py-1.5 rounded-md text-sm font-medium border border-[var(--color-border)] bg-[var(--color-surface)] text-white hover:bg-[var(--color-surface-2)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                    Previous
+                    {t('common.previous', currentLocale)}
                 </button>
                 <button 
                     disabled={data.pagination.page * data.pagination.limit >= data.pagination.total}
                     onclick={() => goToPage(data.pagination.page + 1)}
                     class="px-3 py-1.5 rounded-md text-sm font-medium border border-[var(--color-border)] bg-[var(--color-surface)] text-white hover:bg-[var(--color-surface-2)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                    Next
+                    {t('common.next', currentLocale)}
                 </button>
             </div>
         </div>
@@ -169,7 +173,7 @@
   <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
     <div class="w-full max-w-md rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-2xl">
       <div class="flex items-center justify-between mb-4">
-        <h2 class="text-lg font-semibold text-white">Add New User</h2>
+        <h2 class="text-lg font-semibold text-white">{t('users.add_new', currentLocale)}</h2>
         <button onclick={() => (isCreateOpen = false)} class="text-[var(--color-muted)] hover:text-white">
           <X class="h-5 w-5" />
         </button>
@@ -184,13 +188,13 @@
       <form onsubmit={handleCreateUser}>
         <div class="space-y-4">
           <div>
-            <label for="email" class="block text-sm font-medium text-[var(--color-muted-foreground)] mb-1">Email Address</label>
+            <label for="email" class="block text-sm font-medium text-[var(--color-muted-foreground)] mb-1">{t('users.email', currentLocale)}</label>
             <input id="email" type="email" required bind:value={newEmail}
               class="w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface-2)] px-3 py-2 text-sm text-white focus:border-[var(--color-accent)] focus:outline-none"
               placeholder="user@example.com" />
           </div>
           <div>
-            <label for="password" class="block text-sm font-medium text-[var(--color-muted-foreground)] mb-1">Password</label>
+            <label for="password" class="block text-sm font-medium text-[var(--color-muted-foreground)] mb-1">{t('users.password', currentLocale)}</label>
             <input id="password" type="password" required bind:value={newPassword}
               class="w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface-2)] px-3 py-2 text-sm text-white focus:border-[var(--color-accent)] focus:outline-none"
               placeholder="••••••••" />
@@ -203,9 +207,9 @@
             <button type="submit" disabled={isCreating}
               class="flex items-center justify-center gap-2 rounded-md bg-white px-4 py-2 text-sm font-semibold text-black transition hover:bg-gray-200 disabled:opacity-50">
               {#if isCreating}
-                <Loader2 class="h-4 w-4 animate-spin" /> Adding...
+                <Loader2 class="h-4 w-4 animate-spin" /> {t('users.adding', currentLocale)}
               {:else}
-                <Plus class="h-4 w-4" /> Add User
+                <Plus class="h-4 w-4" /> {t('users.add', currentLocale)}
               {/if}
             </button>
           </div>
@@ -234,7 +238,7 @@
       {/if}
 
       <form onsubmit={handleSaveRole}>
-        <p class="text-xs font-medium text-[var(--color-muted-foreground)] uppercase tracking-wider mb-3">Assign Role</p>
+        <p class="text-xs font-medium text-[var(--color-muted-foreground)] uppercase tracking-wider mb-3">{t('users.assign_role', currentLocale)}</p>
         <div class="space-y-2 mb-6">
           {#each data.roles as role (role.id)}
             {@const checked = selectedRoleId === role.id}
@@ -274,9 +278,9 @@
           <button type="submit" disabled={isSavingRole || selectedRoleId === managedUser.role_id}
             class="flex items-center justify-center gap-2 rounded-md bg-[var(--color-accent)] px-4 py-2 text-sm font-semibold text-black transition hover:bg-[var(--color-accent-hover)] disabled:opacity-50">
             {#if isSavingRole}
-              <Loader2 class="h-4 w-4 animate-spin" /> Saving...
+              <Loader2 class="h-4 w-4 animate-spin" /> {t('settings.saving', currentLocale)}
             {:else}
-              Save Role
+              {t('users.save_role', currentLocale)}
             {/if}
           </button>
         </div>

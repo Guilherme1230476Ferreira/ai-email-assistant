@@ -27,8 +27,15 @@ export type ApiSettings = {
 export type ApiTelemetry = {
 	context_retrieval_rate: number;
 	avg_similarity_score: number;
-	tokens_saved: number;
+	chars_processed: number;
 	knowledge_matches: number;
+	kb_hit_rate: number;
+};
+export type ApiRagTraceItem = {
+	source: string;
+	title: string;
+	text: string;
+	score: number;
 };
 export type ApiAuditLog = {
 	id: string;
@@ -79,13 +86,15 @@ export const api = {
 	deleteRole: (id: string) => request<void>('DELETE', `/admin/roles/${id}`),
 	generateEmail: (prompt: string) => request<ApiEmail>('POST', '/emails/generate', { prompt }),
 	deleteEmail: (id: string) => request<void>('DELETE', `/emails/${id}`),
+	getEmailTrace: (id: string) => request<ApiRagTraceItem[]>('GET', `/emails/${id}/trace`),
 	
 	// Streaming generation
 	generateEmailStream: async (
 		prompt: string,
 		onToken: (token: string) => void,
 		onError: (err: string) => void,
-		onDone: () => void
+		onDone: () => void,
+		onLog?: (msg: string) => void
 	) => {
 		const headers = authHeaders();
 
@@ -134,6 +143,8 @@ export const api = {
 							
 							if (eventType === 'token') {
 								onToken(data);
+							} else if (eventType === 'log') {
+								onLog?.(data);
 							} else if (eventType === 'error') {
 								onError(data);
 							} else if (eventType === 'done') {

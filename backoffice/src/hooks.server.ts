@@ -88,8 +88,9 @@ function getMockResponse(url: URL, request: Request): Response {
 			JSON.stringify({
 				context_retrieval_rate: 0,
 				avg_similarity_score: 0,
-				tokens_saved: 0,
-				knowledge_matches: 0
+				chars_processed: 0,
+				knowledge_matches: 0,
+				kb_hit_rate: 0
 			}),
 			{ status: 200, headers: { 'Content-Type': 'application/json' } }
 		);

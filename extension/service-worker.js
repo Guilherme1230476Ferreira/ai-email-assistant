@@ -21,6 +21,32 @@ async function getToken() {
   return token || null;
 }
 
+// ── Extension Heartbeat Ping ──────────────────────────────────────────────────
+
+async function pingExtension() {
+  const token = await getToken();
+  if (!token) return; // not logged in, skip
+  try {
+    const apiUrl = await getApiUrl();
+    await fetch(`${apiUrl}/api/extension/ping`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  } catch {
+    // silently ignore — server may be temporarily unreachable
+  }
+}
+
+// Ping on install / activate
+chrome.runtime.onInstalled.addListener(() => pingExtension());
+chrome.runtime.onStartup.addListener(() => pingExtension());
+
+// Recurring ping every 60 seconds via alarms
+chrome.alarms.create('extension-ping', { periodInMinutes: 1 });
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === 'extension-ping') pingExtension();
+});
+
 // ── Message Router ───────────────────────────────────────────────────────────
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -167,6 +193,11 @@ async function handleGenerateReply({ prompt }, tabId) {
             chrome.tabs.sendMessage(tabId, {
               type: 'GENERATE_ERROR',
               error: data,
+            });
+          } else if (currentEventType === 'log') {
+            chrome.tabs.sendMessage(tabId, {
+              type: 'GENERATE_LOG',
+              message: data,
             });
           } else {
             // Default: treat as token

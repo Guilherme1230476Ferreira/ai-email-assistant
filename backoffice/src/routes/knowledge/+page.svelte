@@ -2,8 +2,12 @@
   import { authToken } from '$lib/stores/auth';
   import { invalidateAll } from '$app/navigation';
   import { BookOpen, FileText, HelpCircle, Upload, Trash2, Plus, Loader2 } from '@lucide/svelte';
+  import { locale, t, type Locale } from '$lib/i18n';
 
   let { data } = $props();
+
+  let currentLocale = $state<Locale>($locale);
+  locale.subscribe((val) => (currentLocale = val));
 
   let activeTab = $state<'documents' | 'qa'>('qa');
 
@@ -123,15 +127,15 @@
 </script>
 
 <svelte:head>
-  <title>Knowledge Base · MailMate</title>
+  <title>{t('knowledge.title', currentLocale)} · MailMate</title>
 </svelte:head>
 
 <div class="mx-auto w-full max-w-5xl space-y-8 pb-12">
   <!-- Header -->
   <div>
-    <h1 class="text-2xl font-bold tracking-tight text-white">Knowledge Base</h1>
+    <h1 class="text-2xl font-bold tracking-tight text-white">{t('knowledge.title', currentLocale)}</h1>
     <p class="mt-1 text-sm text-[var(--color-muted)]">
-      Manage documents and Q&A pairs that power the RAG pipeline. Knowledge entries are global and available to all users.
+      {t('knowledge.subtitle', currentLocale)}
     </p>
   </div>
 
@@ -142,14 +146,14 @@
         ? 'bg-[var(--color-accent)] text-black'
         : 'text-[var(--color-muted-foreground)] hover:text-white hover:bg-[var(--color-surface-2)]'}"
       onclick={() => (activeTab = 'qa')}>
-      <span class="inline-flex items-center gap-2"><HelpCircle class="h-4 w-4" /> Q&A Pairs</span>
+      <span class="inline-flex items-center gap-2"><HelpCircle class="h-4 w-4" /> {t('knowledge.qa_tab', currentLocale)}</span>
     </button>
     <button
       class="flex-1 rounded-md px-4 py-2 text-sm font-medium transition {activeTab === 'documents'
         ? 'bg-[var(--color-accent)] text-black'
         : 'text-[var(--color-muted-foreground)] hover:text-white hover:bg-[var(--color-surface-2)]'}"
       onclick={() => (activeTab = 'documents')}>
-      <span class="inline-flex items-center gap-2"><FileText class="h-4 w-4" /> Documents</span>
+      <span class="inline-flex items-center gap-2"><FileText class="h-4 w-4" /> {t('knowledge.docs_tab', currentLocale)}</span>
     </button>
   </div>
 
@@ -160,20 +164,20 @@
       <div class="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
         <h2 class="mb-4 text-lg font-semibold text-white flex items-center gap-2">
           <Plus class="h-5 w-5 text-[var(--color-accent)]" />
-          Add Q&A Pair
+          {t('knowledge.add_qa', currentLocale)}
         </h2>
         <p class="mb-4 text-xs text-[var(--color-muted)]">
-          Add a question and its ideal answer. The question is embedded so that when similar incoming emails arrive, the answer is used as RAG context.
+          {t('knowledge.qa_description', currentLocale)}
         </p>
 
         <form onsubmit={(e) => { e.preventDefault(); submitQA(); }} class="space-y-4">
           <div>
-            <label for="question" class="mb-1 block text-xs font-semibold uppercase tracking-wider text-[var(--color-muted-foreground)]">Question</label>
+            <label for="question" class="mb-1 block text-xs font-semibold uppercase tracking-wider text-[var(--color-muted-foreground)]">{t('knowledge.question', currentLocale)}</label>
             <input id="question" type="text" bind:value={question} placeholder="e.g. What is our refund policy?"
               class="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-2)] px-4 py-2.5 text-sm text-white placeholder-[var(--color-muted)] focus:border-[var(--color-accent)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)]" />
           </div>
           <div>
-            <label for="answer" class="mb-1 block text-xs font-semibold uppercase tracking-wider text-[var(--color-muted-foreground)]">Answer</label>
+            <label for="answer" class="mb-1 block text-xs font-semibold uppercase tracking-wider text-[var(--color-muted-foreground)]">{t('knowledge.answer', currentLocale)}</label>
             <textarea id="answer" bind:value={answer} rows="4" placeholder="e.g. We offer a 30-day full refund on all products..."
               class="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-2)] px-4 py-2.5 text-sm text-white placeholder-[var(--color-muted)] focus:border-[var(--color-accent)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)] resize-none"></textarea>
           </div>
@@ -188,9 +192,9 @@
           <button type="submit" disabled={qaLoading || !question.trim() || !answer.trim()}
             class="inline-flex items-center gap-2 rounded-lg bg-[var(--color-accent)] px-5 py-2.5 text-sm font-semibold text-black transition hover:bg-[var(--color-accent-500)] disabled:opacity-50 disabled:cursor-not-allowed">
             {#if qaLoading}
-              <Loader2 class="h-4 w-4 animate-spin" /> Embedding...
+              <Loader2 class="h-4 w-4 animate-spin" /> {t('knowledge.embedding', currentLocale)}
             {:else}
-              <Plus class="h-4 w-4" /> Add Entry
+              <Plus class="h-4 w-4" /> {t('knowledge.add_entry', currentLocale)}
             {/if}
           </button>
         </form>
@@ -199,12 +203,12 @@
       <!-- Q&A Entries List -->
       <div class="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]">
         <div class="border-b border-[var(--color-border)] px-6 py-4">
-          <h2 class="text-sm font-semibold text-white">Existing Q&A Pairs ({qaPairs.length})</h2>
+          <h2 class="text-sm font-semibold text-white">{t('knowledge.existing_qa', currentLocale)} ({qaPairs.length})</h2>
         </div>
 
         {#if qaPairs.length === 0}
           <div class="px-6 py-12 text-center text-sm text-[var(--color-muted)]">
-            No Q&A pairs yet. Add one above to enrich the RAG context.
+            {t('knowledge.no_qa', currentLocale)}
           </div>
         {:else}
           <div class="divide-y divide-[var(--color-border)]">
@@ -244,10 +248,10 @@
       <div class="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
         <h2 class="mb-4 text-lg font-semibold text-white flex items-center gap-2">
           <Upload class="h-5 w-5 text-[var(--color-accent)]" />
-          Upload Document
+          {t('knowledge.upload_doc', currentLocale)}
         </h2>
         <p class="mb-4 text-xs text-[var(--color-muted)]">
-          Upload a document (.txt, .md, .pdf). It will be chunked using the <strong class="text-[var(--color-accent-200)]">text-splitter</strong> framework and each chunk embedded for RAG retrieval.
+          {t('knowledge.upload_description', currentLocale)}
         </p>
 
         <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -262,7 +266,7 @@
           onclick={() => fileInput?.click()}>
           <Upload class="h-8 w-8 text-[var(--color-muted)] mb-3" />
           <p class="text-sm text-[var(--color-muted-foreground)]">
-            <span class="font-semibold text-[var(--color-accent)]">Click to upload</span> or drag and drop
+            <span class="font-semibold text-[var(--color-accent)]">{t('knowledge.click_upload', currentLocale)}</span> {t('knowledge.or_drag', currentLocale)}
           </p>
           <p class="mt-1 text-xs text-[var(--color-muted)]">.txt, .md, .pdf — max 10MB</p>
           <input bind:this={fileInput} type="file" accept=".txt,.md,.pdf" class="hidden" onchange={handleFileSelect} />
@@ -270,7 +274,7 @@
 
         {#if uploadLoading}
           <div class="mt-4 flex items-center gap-2 text-sm text-[var(--color-accent)]">
-            <Loader2 class="h-4 w-4 animate-spin" /> Extracting, chunking & embedding...
+            <Loader2 class="h-4 w-4 animate-spin" /> {t('knowledge.processing', currentLocale)}
           </div>
         {/if}
         {#if uploadError}

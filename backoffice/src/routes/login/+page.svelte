@@ -3,8 +3,12 @@
   import { Sparkles, Mail, Lock, ArrowRight, Loader2 } from '@lucide/svelte';
   import { page } from '$app/state';
   import type { ActionData } from './$types';
+  import { locale, t, type Locale } from '$lib/i18n';
 
   let { form }: { form: ActionData } = $props();
+
+  let currentLocale = $state<Locale>($locale);
+  locale.subscribe((val) => (currentLocale = val));
 
   let loading = $state(false);
 
@@ -33,7 +37,7 @@
       <div class="mb-6 flex h-14 w-14 items-center justify-center rounded-lg bg-[var(--color-accent)] text-black shadow-lg">
         <Sparkles class="h-8 w-8" strokeWidth={2.5} />
       </div>
-      <h1 class="text-3xl font-bold tracking-tight text-white">Sign in to MailMate</h1>
+      <h1 class="text-3xl font-bold tracking-tight text-white">{t('login.title', currentLocale)}</h1>
       <p class="mt-2.5 text-base text-[var(--color-muted)]">Welcome back. Enter your details to continue.</p>
     </div>
 
@@ -55,7 +59,7 @@
 
       <div class="relative mb-6 flex items-center py-2">
         <div class="flex-grow border-t border-[var(--color-border)]"></div>
-        <span class="mx-4 flex-shrink text-xs uppercase text-[var(--color-muted-foreground)]">Or continue with email</span>
+        <span class="mx-4 flex-shrink text-xs uppercase text-[var(--color-muted-foreground)]">{t('login.or', currentLocale)}</span>
         <div class="flex-grow border-t border-[var(--color-border)]"></div>
       </div>
 
@@ -82,7 +86,7 @@
 
         <div class="space-y-6">
           <div>
-            <label for="email" class="mb-2 block text-sm font-medium text-[var(--color-muted-foreground)]">Email</label>
+            <label for="email" class="mb-2 block text-sm font-medium text-[var(--color-muted-foreground)]">{t('login.email', currentLocale)}</label>
             <div class="relative">
               <Mail class="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[var(--color-muted)]" />
               <input id="email" name="email" type="email" required autocomplete="email" placeholder="you@company.com"
@@ -92,7 +96,7 @@
 
           <div>
             <div class="mb-2 flex items-center justify-between">
-              <label for="password" class="block text-sm font-medium text-[var(--color-muted-foreground)]">Password</label>
+              <label for="password" class="block text-sm font-medium text-[var(--color-muted-foreground)]">{t('login.password', currentLocale)}</label>
             </div>
             <div class="relative">
               <Lock class="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[var(--color-muted)]" />
@@ -105,17 +109,17 @@
         <button type="submit" disabled={loading}
           class="mt-8 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--color-accent)] px-4 py-3.5 text-base font-bold text-black transition hover:bg-[var(--color-accent-hover)] disabled:cursor-not-allowed disabled:opacity-60">
           {#if loading}
-            <Loader2 class="h-5 w-5 animate-spin" /> Signing in...
+            <Loader2 class="h-5 w-5 animate-spin" /> {t('login.signing_in', currentLocale)}
           {:else}
-            Sign in <ArrowRight class="h-5 w-5" />
+            {t('login.submit', currentLocale)} <ArrowRight class="h-5 w-5" />
           {/if}
         </button>
       </form>
     </div>
 
     <p class="mt-8 text-center text-sm text-[var(--color-muted)]">
-      Don&apos;t have an account?
-      <a href="/signup" class="font-medium text-white hover:text-[var(--color-accent)]">Create one</a>
+      {t('login.no_account', currentLocale)}
+      <a href="/signup" class="font-medium text-white hover:text-[var(--color-accent)]">{t('login.register', currentLocale)}</a>
     </p>
   </div>
 </div>

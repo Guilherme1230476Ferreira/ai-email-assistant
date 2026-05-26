@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT COUNT(*) AS total_kb_chunks\n            FROM knowledge_embeddings\n            WHERE embedding IS NOT NULL\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "total_kb_chunks",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "7248a4df0257ea2986f9b6ab28eab64cfc45642496ccfe2159b7af38743642d1"
+}

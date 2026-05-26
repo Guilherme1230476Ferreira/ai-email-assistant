@@ -1,11 +1,12 @@
 use axum::{Router, routing::get};
+use axum::extract::DefaultBodyLimit;
 use tower_http::cors::{CorsLayer, Any};
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
 use crate::{
     app_error::AppError,
-    handlers::{admin_handler, auth_handler, email_handler, knowledge_handler, role_handler, settings_handler},
+    handlers::{admin_handler, auth_handler, email_handler, extension_handler, knowledge_handler, role_handler, settings_handler},
     models::{
         domain::{Email, Role, User},
         dto::{
@@ -159,6 +160,10 @@ pub async fn create_router(app_state: AppState) -> Router {
             axum::routing::delete(email_handler::delete_email_handler),
         )
         .route(
+            "/api/emails/:id/trace",
+            axum::routing::get(knowledge_handler::get_email_rag_trace_handler),
+        )
+        .route(
             "/api/telemetry",
             axum::routing::get(email_handler::get_telemetry_handler),
         )
@@ -178,11 +183,23 @@ pub async fn create_router(app_state: AppState) -> Router {
         )
         .route(
             "/api/knowledge/upload",
-            axum::routing::post(knowledge_handler::upload_document_handler),
+            axum::routing::post(knowledge_handler::upload_document_handler)
+                // Raise body limit to 20 MB for document uploads.
+                // Axum's default is 2 MB, which causes multipart uploads to
+                // fail with a 413 that the browser can misreport as a 404.
+                .layer(DefaultBodyLimit::max(20 * 1024 * 1024)),
         )
         .route(
             "/api/knowledge/:id",
             axum::routing::delete(knowledge_handler::delete_knowledge_entry_handler),
+        )
+        .route(
+            "/api/extension/ping",
+            axum::routing::post(extension_handler::extension_ping_handler),
+        )
+        .route(
+            "/api/extension/status",
+            axum::routing::get(extension_handler::extension_status_handler),
         )
         .with_state(app_state);
 

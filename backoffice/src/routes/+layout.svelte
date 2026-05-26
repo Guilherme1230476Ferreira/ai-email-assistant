@@ -7,7 +7,7 @@
   import {
     LayoutDashboard, Mail, Users, Shield, Settings,
     LogOut, Sparkles, Menu, X, ShieldAlert, BookOpen,
-    ChevronsLeft, ChevronsRight, Globe
+    ChevronsLeft, ChevronsRight, Globe, Puzzle
   } from '@lucide/svelte';
 
   let { children, data } = $props();
@@ -54,6 +54,33 @@
   function toggleCollapse() {
     sidebarCollapsed = !sidebarCollapsed;
   }
+
+  // Extension Status Widget
+  let extensionConnected = $state(false);
+
+  async function checkExtensionStatus() {
+    try {
+      const { get } = await import('svelte/store');
+      const { authToken } = await import('$lib/stores/auth');
+      const tok = get(authToken);
+      if (!tok) { extensionConnected = false; return; }
+      const res = await fetch('/api/extension/status', {
+        headers: { Authorization: `Bearer ${tok}` }
+      });
+      if (res.ok) {
+        const json = await res.json();
+        extensionConnected = json.connected ?? false;
+      }
+    } catch {
+      extensionConnected = false;
+    }
+  }
+
+  $effect(() => {
+    checkExtensionStatus();
+    const interval = setInterval(checkExtensionStatus, 30_000);
+    return () => clearInterval(interval);
+  });
 </script>
 
 {#if page.url.pathname.startsWith('/login') || page.url.pathname.startsWith('/signup')}
@@ -221,6 +248,24 @@
             <Shield class="h-3 w-3" /> {t('header.admin', currentLocale)}
           </span>
         {/if}
+
+        <!-- Extension Status Widget -->
+        <span
+          title={extensionConnected ? t('ext.tooltip_on', currentLocale) : t('ext.tooltip_off', currentLocale)}
+          class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-medium border transition-all duration-300
+            {extensionConnected
+              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+              : 'bg-[var(--color-surface-2)] border-[var(--color-border)] text-[var(--color-muted)]'}">
+          <span class="relative flex h-1.5 w-1.5">
+            {#if extensionConnected}
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            {/if}
+            <span class="relative inline-flex rounded-full h-1.5 w-1.5 {extensionConnected ? 'bg-emerald-400' : 'bg-[var(--color-muted)]'}"></span>
+          </span>
+          <Puzzle class="h-3 w-3" />
+          {extensionConnected ? t('ext.connected', currentLocale) : t('ext.disconnected', currentLocale)}
+        </span>
+
         <span class="inline-flex h-1.5 w-1.5 rounded-full bg-[var(--color-success)]"></span>
         <span>{t('header.connected', currentLocale)}</span>
       </div>

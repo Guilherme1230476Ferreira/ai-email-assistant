@@ -3,8 +3,12 @@
   import { invalidateAll } from '$app/navigation';
   import { Plus, X, Loader2, Trash2 } from '@lucide/svelte';
   import { api } from '$lib/api';
+  import { locale, t, type Locale } from '$lib/i18n';
 
   let { data }: { data: PageData } = $props();
+
+  let currentLocale = $state<Locale>($locale);
+  locale.subscribe((val) => (currentLocale = val));
 
   // ── Create role ────────────────────────────────────────────────────────────
   let isModalOpen = $state(false);
@@ -40,21 +44,21 @@
 </script>
 
 <svelte:head>
-  <title>Roles · MailMate</title>
+  <title>{t('roles.title', currentLocale)} · MailMate</title>
 </svelte:head>
 
 <div class="mx-auto w-full max-w-5xl space-y-8">
   <header class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
     <div>
-      <h1 class="text-2xl font-semibold tracking-tight text-white">Roles</h1>
-      <p class="text-sm text-[var(--color-muted-foreground)]">Manage system permissions and roles.</p>
+      <h1 class="text-2xl font-semibold tracking-tight text-white">{t('roles.title', currentLocale)}</h1>
+      <p class="text-sm text-[var(--color-muted-foreground)]">{t('roles.subtitle', currentLocale)}</p>
     </div>
     <button
       onclick={() => { isModalOpen = true; createError = null; }}
       class="flex items-center gap-2 rounded-md bg-white px-4 py-2.5 text-sm font-semibold text-black transition hover:bg-gray-200"
     >
       <Plus class="h-4 w-4" />
-      New Role
+      {t('roles.add', currentLocale)}
     </button>
   </header>
 
@@ -84,7 +88,7 @@
           </button>
         </li>
       {:else}
-        <li class="px-5 py-10 text-center text-sm text-[var(--color-muted-foreground)]">No roles found.</li>
+        <li class="px-5 py-10 text-center text-sm text-[var(--color-muted-foreground)]">{t('roles.no_roles', currentLocale)}</li>
       {/each}
     </ul>
   </div>
@@ -95,7 +99,7 @@
   <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
     <div class="w-full max-w-md rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-2xl">
       <div class="flex items-center justify-between mb-4">
-        <h2 class="text-lg font-semibold text-white">Add New Role</h2>
+        <h2 class="text-lg font-semibold text-white">{t('roles.add_new', currentLocale)}</h2>
         <button onclick={() => (isModalOpen = false)} class="text-[var(--color-muted)] hover:text-white">
           <X class="h-5 w-5" />
         </button>
@@ -110,7 +114,7 @@
       <form onsubmit={handleCreateRole}>
         <div class="space-y-4">
           <div>
-            <label for="roleName" class="block text-sm font-medium text-[var(--color-muted-foreground)] mb-1">Role Name</label>
+            <label for="roleName" class="block text-sm font-medium text-[var(--color-muted-foreground)] mb-1">{t('roles.name', currentLocale)}</label>
             <input
               id="roleName"
               type="text"
@@ -128,9 +132,9 @@
             <button type="submit" disabled={isCreating}
               class="flex items-center justify-center gap-2 rounded-md bg-white px-4 py-2 text-sm font-semibold text-black transition hover:bg-gray-200 disabled:opacity-50">
               {#if isCreating}
-                <Loader2 class="h-4 w-4 animate-spin" /> Creating...
+                <Loader2 class="h-4 w-4 animate-spin" /> {t('roles.creating', currentLocale)}
               {:else}
-                <Plus class="h-4 w-4" /> Create Role
+                <Plus class="h-4 w-4" /> {t('roles.add', currentLocale)}
               {/if}
             </button>
           </div>

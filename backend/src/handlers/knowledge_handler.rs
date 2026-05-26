@@ -12,6 +12,7 @@ use axum::{
     http::StatusCode,
     response::IntoResponse,
 };
+use sqlx::Row;
 
 use crate::{
     app_error::AppError,
@@ -279,7 +280,79 @@ pub async fn get_knowledge_entries_handler(
     Ok((StatusCode::OK, Json(response)))
 }
 
-// ── Delete Entry ─────────────────────────────────────────────────────────────
+// ── RAG Trace Endpoint ────────────────────────────────────────────────────────
+
+#[utoipa::path(
+    get,
+    path = "/api/emails/{id}/trace",
+    responses(
+        (status = 200, description = "RAG context trace for the given email"),
+        (status = 404, description = "Email not found or has no embedding"),
+        (status = 401, description = "Unauthorized"),
+    ),
+    security(("bearer_auth" = [])),
+    tag = "Email"
+)]
+#[axum::debug_handler(state = crate::state::AppState)]
+pub async fn get_email_rag_trace_handler(
+    State(knowledge_repo): State<Arc<KnowledgeRepository>>,
+    State(rig_service): State<Arc<RigRagService>>,
+    _admin: AdminUser,
+    Path(email_id): Path<uuid::Uuid>,
+) -> Result<impl IntoResponse, AppError> {
+    let pool = knowledge_repo.get_pool();
+
+    // 1. Load the stored prompt embedding for this email
+    let row = sqlx::query(
+        r#"
+        SELECT ee.content_embedding
+        FROM email_embeddings ee
+        WHERE ee.email_id = $1
+        LIMIT 1
+        "#,
+    )
+    .bind(email_id)
+    .fetch_optional(&pool)
+    .await
+    .map_err(|e| AppError::new(StatusCode::INTERNAL_SERVER_ERROR, format!("DB error: {}", e)))?;
+
+    let embedding_vec: pgvector::Vector = match row {
+        Some(r) => {
+            let v: Option<pgvector::Vector> = r.try_get("content_embedding").ok().flatten();
+            v.ok_or_else(|| AppError::new(StatusCode::NOT_FOUND, "Email has no embedding stored"))?
+        }
+        None => return Err(AppError::new(StatusCode::NOT_FOUND, "Email not found")),
+    };
+
+    let floats: Vec<f32> = embedding_vec.to_vec();
+
+    // 2. Re-run the same vector search the RAG pipeline uses
+    //    (email_id used as a stand-in for user_id — KB search ignores it)
+    let results = rig_service
+        .vector_index
+        .search_all_context(&floats, email_id, 5)
+        .await
+        .map_err(|e| AppError::new(StatusCode::INTERNAL_SERVER_ERROR, format!("Search error: {:?}", e)))?;
+
+    // 3. Map to trace items
+    let trace: Vec<crate::models::dto::RagTraceItem> = results
+        .into_iter()
+        .map(|ctx| crate::models::dto::RagTraceItem {
+            source: if ctx.title == "Past Email" {
+                "past_email".to_string()
+            } else {
+                "knowledge_base".to_string()
+            },
+            title: ctx.title,
+            text: ctx.text,
+            score: ctx.score,
+        })
+        .collect();
+
+    Ok((StatusCode::OK, Json(trace)))
+}
+
+
 
 #[utoipa::path(
     delete,
