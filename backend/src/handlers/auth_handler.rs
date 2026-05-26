@@ -310,3 +310,98 @@ pub async fn me_handler(
     let response = crate::models::dto::UserResponse::from(auth_user.0);
     Ok((axum::http::StatusCode::OK, axum::Json(response)))
 }
+
+// ── GDPR: Self-service account deletion ──────────────────────────────────────
+
+/// DELETE /api/auth/me
+/// Permanently deletes the authenticated user and ALL their data.
+/// Cascades via DB FK constraints: emails → email_embeddings → gone.
+#[axum::debug_handler(state = AppState)]
+pub async fn delete_me_handler(
+    State(user_repo): State<Arc<UserRepository>>,
+    auth_user: crate::middleware::auth::AuthUser,
+) -> Result<impl axum::response::IntoResponse, AppError> {
+    let user_id = auth_user.0.id;
+
+    user_repo.delete_user(user_id).await.map_err(|e| {
+        tracing::error!("Failed to delete user {}: {:?}", user_id, e);
+        AppError::new(StatusCode::INTERNAL_SERVER_ERROR, "Failed to delete account")
+    })?;
+
+    tracing::info!("User {} self-deleted their account (GDPR erasure)", user_id);
+
+    Ok(StatusCode::NO_CONTENT)
+}
+
+// ── GDPR: Self-service data export ───────────────────────────────────────────
+
+/// GET /api/auth/me/data
+/// Returns a JSON dump of all personal data held for the authenticated user.
+#[axum::debug_handler(state = AppState)]
+pub async fn export_me_handler(
+    State(user_repo): State<Arc<UserRepository>>,
+    auth_user: crate::middleware::auth::AuthUser,
+) -> Result<impl axum::response::IntoResponse, AppError> {
+    use serde::Serialize;
+
+    #[derive(Serialize)]
+    struct EmailExport {
+        id: uuid::Uuid,
+        original_content: String,
+        generated_response: Option<String>,
+        created_at: chrono::DateTime<chrono::Utc>,
+    }
+
+    #[derive(Serialize)]
+    struct DataExport {
+        user: crate::models::dto::UserResponse,
+        emails: Vec<EmailExport>,
+        exported_at: chrono::DateTime<chrono::Utc>,
+        note: &'static str,
+    }
+
+    let user_id = auth_user.0.id;
+
+    // Load emails
+    let pool = user_repo.get_pool();
+    let email_rows = sqlx::query(
+        "SELECT id, original_content, generated_response, created_at \
+         FROM emails WHERE user_id = $1 ORDER BY created_at DESC",
+    )
+    .bind(user_id)
+    .fetch_all(&pool)
+    .await
+    .map_err(|e| AppError::new(StatusCode::INTERNAL_SERVER_ERROR, format!("DB error: {}", e)))?;
+
+    let emails: Vec<EmailExport> = email_rows
+        .iter()
+        .map(|row| {
+            use sqlx::Row;
+            EmailExport {
+                id: row.get("id"),
+                original_content: row.get("original_content"),
+                generated_response: row.get("generated_response"),
+                created_at: row.get("created_at"),
+            }
+        })
+        .collect();
+
+    let export = DataExport {
+        user: crate::models::dto::UserResponse::from(auth_user.0),
+        emails,
+        exported_at: chrono::Utc::now(),
+        note: "This file contains all personal data held by AI Email Assistant for your account. \
+               Retain a copy for your records. You may request deletion via DELETE /api/auth/me.",
+    };
+
+    Ok((
+        StatusCode::OK,
+        axum::http::HeaderMap::from_iter([(
+            axum::http::header::CONTENT_DISPOSITION,
+            "attachment; filename=\"my-data.json\""
+                .parse()
+                .unwrap(),
+        )]),
+        Json(export),
+    ))
+}

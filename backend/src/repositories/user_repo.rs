@@ -133,6 +133,10 @@ impl UserRepository {
             Ok(())
         }
     }
+
+    pub fn get_pool(&self) -> PgPool {
+        (*self.pool).clone()
+    }
 }
 
 #[cfg(test)]

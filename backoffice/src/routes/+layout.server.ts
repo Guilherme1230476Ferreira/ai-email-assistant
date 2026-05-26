@@ -4,7 +4,9 @@ import { redirect } from '@sveltejs/kit';
 export const load: LayoutServerLoad = async ({ cookies, fetch, url }) => {
 	const token = cookies.get('token');
 	const isPublic =
-		url.pathname.startsWith('/login') || url.pathname.startsWith('/signup');
+		url.pathname.startsWith('/login') ||
+		url.pathname.startsWith('/signup') ||
+		url.pathname.startsWith('/privacy');
 
 	if (!token) {
 		if (!isPublic) throw redirect(302, '/login');

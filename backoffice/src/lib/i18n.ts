@@ -1,4 +1,4 @@
-﻿import { writable, derived } from 'svelte/store';
+import { writable, derived } from 'svelte/store';
 import { browser } from '$app/environment';
 
 export type Locale = 'en' | 'pt';
@@ -17,7 +17,8 @@ const translations: Record<string, Record<Locale, string>> = {
 	'nav.roles': { en: 'Roles', pt: 'Funcoes' },
 	'nav.settings': { en: 'Settings', pt: 'Definicoes' },
 	'nav.knowledge': { en: 'Knowledge Base', pt: 'Base de Conhecimento' },
-	'nav.audit': { en: 'Audit Logs', pt: 'Registos de Auditoria' },
+	'nav.audit':    { en: 'Audit Logs',  pt: 'Registos de Auditoria' },
+	'nav.account':  { en: 'My Account',  pt: 'Minha Conta' },
 	'nav.signout': { en: 'Sign Out', pt: 'Terminar Sessao' },
 	'nav.signin': { en: 'Sign In', pt: 'Iniciar Sessao' },
 	'header.connected': { en: 'Connected', pt: 'Conectado' },

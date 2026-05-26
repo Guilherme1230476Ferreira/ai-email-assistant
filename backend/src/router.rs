@@ -112,6 +112,14 @@ pub async fn create_router(app_state: AppState) -> Router {
             axum::routing::post(auth_handler::register_handler),
         )
         .route("/api/auth/me", axum::routing::get(auth_handler::me_handler))
+        .route(
+            "/api/auth/me/data",
+            axum::routing::get(auth_handler::export_me_handler),
+        )
+        .route(
+            "/api/auth/me",
+            axum::routing::delete(auth_handler::delete_me_handler),
+        )
         .route("/api/auth/google", get(auth_handler::google_auth_handler))
         .route(
             "/api/auth/google/callback",

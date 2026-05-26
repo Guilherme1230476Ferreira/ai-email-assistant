@@ -27,10 +27,12 @@ jobs:
 
     env:
       CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
-      CARGO_NET_GIT_FETCH_WITH_CLI: true
-      CARGO_HTTP_TIMEOUT: 300
-      CARGO_NET_RETRY: 5
-      CARGO_HTTP_CHECK_REVOCABLE: false
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+      CARGO_HTTP_TIMEOUT: 30          # fail fast if network is blocked
+      CARGO_NET_RETRY: 2
+      CARGO_HTTP_CHECK_REVOCABLE: "false"
+
+    timeout-minutes: 15               # kill the whole job if something hangs
 
     defaults:
       run:
@@ -52,12 +54,23 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('backend/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-
 
-      # cargo check — best-effort (ISEP network may block crates.io)
+      # Try to warm up the registry cache from the network (best-effort, capped at 60s).
+      # If the ISEP network is blocked this fails quickly and we fall through to --offline.
+      - name: Fetch dependencies (best-effort)
+        continue-on-error: true
+        timeout-minutes: 2
+        env:
+          SQLX_OFFLINE: "true"
+        run: cargo fetch
+
+      # cargo check --offline uses the local ~/.cargo/registry cache.
+      # Never hangs waiting for the network; fails fast if the cache is cold.
       - name: Cargo check (offline)
         continue-on-error: true
+        timeout-minutes: 10
         env:
-          SQLX_OFFLINE: true
-        run: cargo check --verbose
+          SQLX_OFFLINE: "true"
+        run: cargo check --offline
         working-directory: ./backend
 
       # cargo test uses #[sqlx::test] which needs a live PostgreSQL connection.
@@ -86,7 +99,7 @@ jobs:
           SQLX_OFFLINE: false
         run: |
           export DATABASE_URL=$(grep '^DATABASE_URL=' /opt/ai-email-assistant/.env | cut -d'=' -f2-)
-          cargo test
+          cargo test --offline
 
   # ── SvelteKit Backoffice ────────────────────────────────────────────────────
   backoffice-build:

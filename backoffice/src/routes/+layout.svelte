@@ -7,7 +7,7 @@
   import {
     LayoutDashboard, Mail, Users, Shield, Settings,
     LogOut, Sparkles, Menu, X, ShieldAlert, BookOpen,
-    ChevronsLeft, ChevronsRight, Globe, Puzzle, BarChart2
+    ChevronsLeft, ChevronsRight, Globe, Puzzle, BarChart2, UserCircle
   } from '@lucide/svelte';
 
   let { children, data } = $props();
@@ -36,12 +36,13 @@
   const allNav: NavItem[] = [
     { key: 'nav.dashboard', href: '/', icon: LayoutDashboard },
     { key: 'nav.emails',    href: '/emails', icon: Mail },
-    { key: 'nav.analytics', href: '/analytics', icon: BarChart2 },
+    { key: 'nav.analytics', href: '/analytics', icon: BarChart2, adminOnly: true },
     { key: 'nav.users',     href: '/users',  icon: Users,  adminOnly: true },
     { key: 'nav.roles',     href: '/roles',  icon: Shield, adminOnly: true },
     { key: 'nav.settings',  href: '/settings', icon: Settings, adminOnly: true },
     { key: 'nav.knowledge', href: '/knowledge', icon: BookOpen, adminOnly: true },
-    { key: 'nav.audit',     href: '/audit-logs', icon: ShieldAlert, adminOnly: true }
+    { key: 'nav.audit',     href: '/audit-logs', icon: ShieldAlert, adminOnly: true },
+    { key: 'nav.account',   href: '/account',    icon: UserCircle }
   ];
 
   // Filter nav items based on user role

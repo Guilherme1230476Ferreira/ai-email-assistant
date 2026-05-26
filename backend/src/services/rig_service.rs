@@ -74,7 +74,7 @@ impl PgVectorIndex {
     }
 
     /// Call the Gemini OpenAI-compatible embedding endpoint directly via reqwest.
-    /// Returns a float vector ready for pgvector storage.
+    /// Automatically retries on HTTP 429 (rate limit) using the delay the API specifies.
     pub async fn embed_text(&self, text: &str) -> Result<Vec<f32>, AppError> {
         let url = format!(
             "{}/embeddings",
@@ -86,50 +86,103 @@ impl PgVectorIndex {
             "input": text
         });
 
-        let response = self
-            .http
-            .post(&url)
-            .header("Authorization", format!("Bearer {}", self.embedding_api_key))
-            .header("Content-Type", "application/json")
-            .json(&body)
-            .send()
-            .await
-            .map_err(|e| {
+        const MAX_RETRIES: u32 = 6;
+
+        for attempt in 1..=MAX_RETRIES {
+            let response = self
+                .http
+                .post(&url)
+                .header("Authorization", format!("Bearer {}", self.embedding_api_key))
+                .header("Content-Type", "application/json")
+                .json(&body)
+                .send()
+                .await
+                .map_err(|e| {
+                    AppError::new(
+                        StatusCode::BAD_GATEWAY,
+                        format!("Embedding API request failed: {}", e),
+                    )
+                })?;
+
+            let status = response.status();
+
+            // ── Rate limit: wait the delay the API tells us, then retry ──────
+            if status == 429 {
+                let body_text = response.text().await.unwrap_or_default();
+
+                // Parse "retryDelay": "4.619s" from the JSON error body
+                let wait_secs: u64 = serde_json::from_str::<serde_json::Value>(&body_text)
+                    .ok()
+                    .and_then(|v| {
+                        v["error"]["details"]
+                            .as_array()?
+                            .iter()
+                            .find(|d| d["@type"].as_str() == Some("type.googleapis.com/google.rpc.RetryInfo"))?
+                            ["retryDelay"]
+                            .as_str()
+                            .map(|s| {
+                                // e.g. "4.619256081s" → 5
+                                s.trim_end_matches('s')
+                                    .parse::<f64>()
+                                    .map(|f| (f.ceil() as u64) + 1)
+                                    .unwrap_or(10)
+                            })
+                    })
+                    .unwrap_or_else(|| 2u64.pow(attempt)); // exponential fallback
+
+                if attempt < MAX_RETRIES {
+                    tracing::warn!(
+                        "Gemini embedding 429 (attempt {}/{}): waiting {}s before retry",
+                        attempt, MAX_RETRIES, wait_secs
+                    );
+                    tokio::time::sleep(tokio::time::Duration::from_secs(wait_secs)).await;
+                    continue;
+                } else {
+                    return Err(AppError::new(
+                        StatusCode::BAD_GATEWAY,
+                        format!(
+                            "Gemini embedding rate-limited after {} retries. \
+                             Try uploading a smaller document or wait a minute.",
+                            MAX_RETRIES
+                        ),
+                    ));
+                }
+            }
+
+            // ── Other non-2xx errors ─────────────────────────────────────────
+            if !status.is_success() {
+                let body_text = response.text().await.unwrap_or_default();
+                return Err(AppError::new(
+                    StatusCode::BAD_GATEWAY,
+                    format!("Embedding API returned {}: {}", status, body_text),
+                ));
+            }
+
+            // ── Parse successful response ────────────────────────────────────
+            let parsed: EmbeddingResponse = response.json().await.map_err(|e| {
                 AppError::new(
                     StatusCode::BAD_GATEWAY,
-                    format!("Embedding API request failed: {}", e),
+                    format!("Failed to parse embedding response: {}", e),
                 )
             })?;
 
-        if !response.status().is_success() {
-            let status = response.status();
-            let body_text = response.text().await.unwrap_or_default();
-            return Err(AppError::new(
-                StatusCode::BAD_GATEWAY,
-                format!("Embedding API returned {}: {}", status, body_text),
-            ));
+            let floats = parsed
+                .data
+                .into_iter()
+                .next()
+                .ok_or_else(|| {
+                    AppError::new(StatusCode::BAD_GATEWAY, "No embedding data in response")
+                })?
+                .embedding
+                .into_iter()
+                .map(|f| f as f32)
+                .collect();
+
+            return Ok(floats);
         }
 
-        let parsed: EmbeddingResponse = response.json().await.map_err(|e| {
-            AppError::new(
-                StatusCode::BAD_GATEWAY,
-                format!("Failed to parse embedding response: {}", e),
-            )
-        })?;
-
-        let floats = parsed
-            .data
-            .into_iter()
-            .next()
-            .ok_or_else(|| {
-                AppError::new(StatusCode::BAD_GATEWAY, "No embedding data in response")
-            })?
-            .embedding
-            .into_iter()
-            .map(|f| f as f32)
-            .collect();
-
-        Ok(floats)
+        // Unreachable, but satisfies the compiler
+        Err(AppError::new(StatusCode::BAD_GATEWAY, "Embedding failed after all retries"))
     }
 
     /// Search both knowledge_embeddings and email_embeddings for RAG context

@@ -228,7 +228,14 @@
                     </div>
                     <div>
                         <div class="flex items-center justify-between mb-2">
-                            <h4 class="text-xs font-semibold text-[var(--color-accent)] uppercase tracking-wider">{t('emails.generated', currentLocale)}</h4>
+                            <div class="flex items-center gap-2">
+                              <h4 class="text-xs font-semibold text-[var(--color-accent)] uppercase tracking-wider">{t('emails.generated', currentLocale)}</h4>
+                              <!-- EU AI Act Art. 50 — mandatory AI content disclosure -->
+                              <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-[var(--color-accent)]/10 text-[var(--color-accent)] border border-[var(--color-accent)]/25">
+                                <Sparkles class="w-2.5 h-2.5" />
+                                AI Generated
+                              </span>
+                            </div>
                             <button 
                                 onclick={(e) => copyReply(email.id, email.generated_response, e)}
                                 class="flex items-center gap-1.5 text-xs font-medium text-[var(--color-muted-foreground)] hover:text-white transition-colors bg-[var(--color-surface-2)] px-2.5 py-1 rounded-md border border-[var(--color-border)] hover:border-[var(--color-muted)]"
