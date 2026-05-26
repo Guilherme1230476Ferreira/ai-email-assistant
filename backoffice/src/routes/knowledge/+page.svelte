@@ -84,9 +84,9 @@
       }
 
       const result = await res.json();
-      uploadSuccess = `"${result.title}" uploaded — ${result.chunk_count} chunks embedded.`;
+      uploadSuccess = `"${result.title}" uploaded — ${result.chunk_count} chunks queued for embedding. It will be searchable in ~${Math.ceil(result.chunk_count * 0.15)}s.`;
       await invalidateAll();
-      setTimeout(() => (uploadSuccess = ''), 5000);
+      setTimeout(() => (uploadSuccess = ''), 12000);
     } catch (e: any) {
       uploadError = e.message;
     } finally {

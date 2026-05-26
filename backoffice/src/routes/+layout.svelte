@@ -85,7 +85,7 @@
   });
 </script>
 
-{#if page.url.pathname.startsWith('/login') || page.url.pathname.startsWith('/signup')}
+{#if page.url.pathname.startsWith('/login') || page.url.pathname.startsWith('/signup') || page.url.pathname.startsWith('/privacy')}
   <div class="min-h-screen bg-black text-white">
     {@render children()}
   </div>

@@ -189,66 +189,82 @@ pub async fn upload_document_handler(
 
     // Chunk text using the text-splitter framework (semantic-aware splitting)
     let chunks = RigRagService::chunk_document(&text);
-    let chunk_count = chunks.len() as i64;
+    let chunk_count = chunks.len();
 
-    // Embed each chunk using Rig framework
-    let pool = knowledge_repo.get_pool();
-    let mut embedded_count = 0i64;
-    for (i, chunk) in chunks.iter().enumerate() {
-        match rig_service
-            .embed_and_store_chunk(entry.id, chunk, i as i32, &pool)
-            .await
-        {
-            Ok(()) => {
-                embedded_count += 1;
-                tracing::debug!("Chunk {} embedded via Rig for entry {}", i, entry.id);
-                // Proactive rate-limit guard.
-                // Jina free tier = 500 RPM → 1 req / 120ms minimum; 150ms gives headroom.
-                // If still 429'd, embed_text retries automatically with the API's stated delay.
-                if i + 1 < chunks.len() {
-                    tokio::time::sleep(tokio::time::Duration::from_millis(150)).await;
+    // ── Background embedding ──────────────────────────────────────────────────
+    // We spawn the embedding work detached so the HTTP response returns instantly.
+    // This beats any proxy timeout (ngrok = 30s, default nginx = 60s) regardless
+    // of document size. The task is tied to the Tokio runtime, not the request.
+    let rig_bg       = rig_service.clone();
+    let pool_bg      = knowledge_repo.get_pool();
+    let entry_id     = entry.id;
+    let file_name_bg = file_name.clone();
+
+    tokio::spawn(async move {
+        tracing::info!(
+            "Background embedding started: entry={} file={} chunks={}",
+            entry_id, file_name_bg, chunk_count
+        );
+
+        let mut ok = 0usize;
+
+        for (i, chunk) in chunks.iter().enumerate() {
+            match rig_bg.embed_and_store_chunk(entry_id, chunk, i as i32, &pool_bg).await {
+                Ok(()) => {
+                    ok += 1;
+                    // Proactive rate-limit guard.
+                    // Jina free tier = 500 RPM → 1 req / 120ms min; 150ms gives headroom.
+                    if i + 1 < chunks.len() {
+                        tokio::time::sleep(tokio::time::Duration::from_millis(150)).await;
+                    }
+                }
+                Err(e) => {
+                    tracing::error!(
+                        "Background embedding FAILED chunk {}/{} entry={}: {:?}",
+                        i + 1, chunk_count, entry_id, e
+                    );
+                    // Leave whatever chunks succeeded — partial retrieval is still useful.
+                    // Mark the title so admins can identify incomplete entries.
+                    let _ = sqlx::query(
+                        "UPDATE knowledge_entries SET title = title || ' [EMBEDDING FAILED]' \
+                         WHERE id = $1 AND title NOT LIKE '%[EMBEDDING FAILED]%'"
+                    )
+                    .bind(entry_id)
+                    .execute(&pool_bg)
+                    .await;
+                    return;
                 }
             }
-            Err(e) => {
-                // Delete the partial entry so the DB stays clean
-                knowledge_repo.delete_entry(entry.id).await.ok();
-                tracing::error!(
-                    "Embedding API failed for chunk {} of entry {}: {:?}",
-                    i, entry.id, e
-                );
-                return Err(AppError::new(
-                    StatusCode::BAD_GATEWAY,
-                    format!(
-                        "Embedding API failed on chunk {}/{}: {:?}. \
-                         Check that EMBEDDING_API_KEY and EMBEDDING_API_URL are set correctly in the server .env.",
-                        i + 1, chunk_count, e
-                    ),
-                ));
-            }
         }
-    }
 
-    // Audit log
+        tracing::info!(
+            "Background embedding complete: entry={} {}/{} chunks embedded",
+            entry_id, ok, chunk_count
+        );
+    });
+
+    // ── Audit log (fire-and-forget, non-blocking) ─────────────────────────────
     let _ = audit_repo.create_log(
         Some(admin.0.id),
         "knowledge.upload_document",
         Some(serde_json::json!({
             "entry_id": entry.id,
             "filename": file_name,
-            "chunks": embedded_count
+            "chunks_queued": chunk_count
         })),
     ).await;
 
+    // Return 202 immediately — embedding continues in background.
     let response = KnowledgeEntryResponse {
         id: entry.id,
         entry_type: entry.entry_type,
         title: entry.title,
         content: entry.content,
-        chunk_count: embedded_count,
+        chunk_count: chunk_count as i64,
         created_at: entry.created_at,
     };
 
-    Ok((StatusCode::CREATED, Json(response)))
+    Ok((StatusCode::ACCEPTED, Json(response)))
 }
 
 // ── List Entries ─────────────────────────────────────────────────────────────

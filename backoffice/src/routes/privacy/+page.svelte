@@ -8,8 +8,7 @@
 </svelte:head>
 
 <div class="privacy-root">
-  <!-- Background glow -->
-  <div class="privacy-bg-glow"></div>
+
 
   <div class="privacy-container">
     <!-- Header -->
@@ -271,20 +270,13 @@
 <style>
   .privacy-root {
     min-height: 100vh;
-    background: var(--color-bg, #0a0a0f);
+    background: #0d0d14;
     color: var(--color-text, #e2e8f0);
     font-family: 'Inter', 'Outfit', system-ui, sans-serif;
     position: relative;
     overflow-x: hidden;
-  }
-
-  .privacy-bg-glow {
-    pointer-events: none;
-    position: fixed;
-    inset: 0;
-    background: radial-gradient(ellipse at top left, rgba(34,211,238,0.06), transparent 55%),
-                radial-gradient(ellipse at bottom right, rgba(139,92,246,0.05), transparent 55%);
-    z-index: 0;
+    /* Thin top accent bar matching the app's sidebar accent */
+    border-top: 2px solid rgba(34,211,238,0.18);
   }
 
   .privacy-container {
@@ -292,7 +284,7 @@
     z-index: 1;
     max-width: 860px;
     margin: 0 auto;
-    padding: 2rem 1.5rem 4rem;
+    padding: 2.5rem 1.5rem 4rem;
   }
 
   /* Header */
@@ -395,24 +387,24 @@
   }
 
   .privacy-card {
-    border-radius: 1rem;
-    border: 1px solid var(--color-border, rgba(255,255,255,0.08));
-    background: var(--color-surface, rgba(255,255,255,0.03));
+    border-radius: 0.75rem;
+    border: 1px solid rgba(255,255,255,0.07);
+    background: rgba(255,255,255,0.03);
     overflow: hidden;
     transition: border-color 0.2s;
   }
 
   .privacy-card:hover {
-    border-color: rgba(255,255,255,0.14);
+    border-color: rgba(34,211,238,0.18);
   }
 
   .privacy-card-header {
     display: flex;
     align-items: center;
     gap: 0.9rem;
-    padding: 1.25rem 1.5rem;
-    border-bottom: 1px solid var(--color-border, rgba(255,255,255,0.08));
-    background: var(--color-surface-2, rgba(255,255,255,0.02));
+    padding: 1.1rem 1.5rem;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    background: rgba(255,255,255,0.02);
   }
 
   .privacy-card-icon-wrap {
