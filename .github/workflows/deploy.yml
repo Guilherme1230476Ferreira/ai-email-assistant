@@ -20,26 +20,68 @@ concurrency:
   group: deploy-vs224
   cancel-in-progress: false
 
-# Ensure github.token can read the private repo (needed for git fetch)
 permissions:
   contents: read
 
-# ── Deploy Job ────────────────────────────────────────────────────────────────
-# Runs on the self-hosted runner (vs224) as user 'ghrunner', then
-# SSHes to root@localhost for privileged operations (systemctl, cp to /etc).
+# ── Job 1: Build Rust binary on GitHub-hosted runner ─────────────────────────
+# GitHub's ubuntu-latest has full internet → can reach static.crates.io.
+# The university server cannot (firewall blocks it) → this solves the problem.
 jobs:
+  build-backend:
+    name: Build Rust backend
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo registry + build artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            backend/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('backend/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      - name: Build release binary
+        working-directory: backend
+        env:
+          SQLX_OFFLINE: "true"
+        run: cargo build --release
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-email-assistant-binary
+          path: backend/target/release/ai-email-assistant
+          retention-days: 1
+
+# ── Job 2: Deploy to vs224 ────────────────────────────────────────────────────
+# Runs on the self-hosted runner (vs224). Downloads the pre-built binary
+# from Job 1 instead of compiling on the server (which has no crates.io access).
   deploy:
     name: Deploy to vs224
     runs-on: self-hosted
+    needs: build-backend
 
     steps:
-      # Step 1: Checkout code on the runner workspace
-      # This ensures the runner always has the latest code, even for
-      # scheduled and workflow_dispatch triggers.
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
+
+      - name: Download compiled binary
+        uses: actions/download-artifact@v4
+        with:
+          name: ai-email-assistant-binary
+          path: ./artifact
 
       - name: Deploy via SSH to root
         env:
@@ -51,54 +93,41 @@ jobs:
           echo "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           SSH="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no root@127.0.0.1"
+          SCP="scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no"
 
-          # ── Deploy script (runs as root) ─────────────────────────────────
-          # Using unquoted 'EOF' would prevent variable expansion.
-          # We use quoted 'DEPLOY_EOF' for the parts that should NOT expand,
-          # but we need GITHUB_TOKEN to expand, so we use unquoted EOF.
+          # ── Phase 1: DB bootstrap + code pull + migrations ────────────────
           $SSH << EOF
             set -e
-
-            # ── 0. Environment setup ─────────────────────────────────────
-            # Ensure cargo and node are in PATH (installed under root)
             export PATH="/root/.cargo/bin:/usr/local/bin:/usr/bin:/bin:\$PATH"
-            
-            # Source nvm if it exists (for node/npm)
             [ -s "/root/.nvm/nvm.sh" ] && source "/root/.nvm/nvm.sh"
-            
+
             REPO=/opt/ai-email-assistant
             ENV_FILE=\$REPO/.env
 
-            # Verify .env exists on the server
             if [ ! -f "\$ENV_FILE" ]; then
-              echo "❌ ERROR: \$ENV_FILE not found!"
-              echo "   Create it manually on the server first."
-              echo "   See deploy/setup.sh or the server setup guide."
+              echo "❌ ERROR: \$ENV_FILE not found on server!"
               exit 1
             fi
 
-            # ── PostgreSQL bootstrap ───────────────────────────────────────
-            echo "==> [0/7] Ensuring database is up and healthy..."
+            # ── PostgreSQL bootstrap ─────────────────────────────────────────
+            echo "==> [0/6] Ensuring database is up and healthy..."
             bash \$REPO/deploy/db-bootstrap.sh
             echo "    ✅ Database ready."
 
-            # ── 1. Pull latest code ──────────────────────────────────────
-            echo "==> [1/7] Pulling latest code..."
+            # ── 1. Pull latest code ──────────────────────────────────────────
+            echo "==> [1/6] Pulling latest code..."
             cd \$REPO
-            # Temporarily set remote URL with token for private repo auth
             git remote set-url origin https://x-access-token:${GITHUB_TOKEN}@github.com/Guilherme1230476Ferreira/ai-email-assistant.git
             git fetch --all --prune
             git reset --hard origin/main
-            # Remove token from persisted remote URL
             git remote set-url origin https://github.com/Guilherme1230476Ferreira/ai-email-assistant.git
 
-            # ── 2. Run database migrations ───────────────────────────────
-            echo "==> [2/7] Running database migrations..."
+            # ── 2. Run database migrations ───────────────────────────────────
+            echo "==> [2/6] Running database migrations..."
             source <(grep '^DATABASE_URL=' "\$ENV_FILE")
             export DATABASE_URL
             cd \$REPO/backend
 
-            # Use sqlx-cli if available, otherwise use psql fallback
             if command -v sqlx &>/dev/null; then
               sqlx migrate run
               echo "    Migrations applied via sqlx."
@@ -111,58 +140,48 @@ jobs:
               done
               echo "    Migrations applied via psql."
             fi
+          EOF
 
-            # ── 3. Build Rust backend ────────────────────────────────────
-            echo "==> [3/7] Building Rust backend (release)..."
-            cd \$REPO/backend
-            export SQLX_OFFLINE=true
-            # Increase timeout and retry count to cope with slow crates.io access
-            export CARGO_HTTP_TIMEOUT=180
-            export CARGO_NET_RETRY=5
-            # Capture build output AND exit code (pipe would swallow exit code)
-            set +e
-            cargo build --release 2>&1 | tail -20
-            CARGO_EXIT=\${PIPESTATUS[0]}
+          # ── Phase 2: Copy pre-built binary (avoids server compiling) ─────
+          echo "==> [3/6] Deploying pre-built binary..."
+          chmod +x ./artifact/ai-email-assistant
+          $SCP ./artifact/ai-email-assistant root@127.0.0.1:/opt/ai-email-assistant/target/release/ai-email-assistant
+          echo "    ✅ Binary deployed (compiled on GitHub-hosted runner)."
+
+          # ── Phase 3: Build frontend + restart services ────────────────────
+          $SSH << EOF
             set -e
-            if [ "\$CARGO_EXIT" -ne 0 ]; then
-              echo "    ❌ Backend build FAILED (exit \$CARGO_EXIT)"
-              echo "    Last 30 lines of backend journal:"
-              journalctl -u ai-backend -n 30 --no-pager || true
-              exit \$CARGO_EXIT
-            fi
-            echo "    Backend compiled. ✅"
+            export PATH="/usr/local/bin:/usr/bin:/bin:\$PATH"
+            [ -s "/root/.nvm/nvm.sh" ] && source "/root/.nvm/nvm.sh"
 
-            # ── 4. Build SvelteKit backoffice ────────────────────────────
-            echo "==> [4/7] Building SvelteKit backoffice..."
+            REPO=/opt/ai-email-assistant
+
+            # ── 4. Build SvelteKit backoffice ────────────────────────────────
+            echo "==> [4/6] Building SvelteKit backoffice..."
             cd \$REPO/backoffice
             npm ci --ignore-scripts 2>&1 | tail -3
             npm run build 2>&1 | tail -5
             echo "    Backoffice built."
 
-            # ── 5. Configure Nginx ───────────────────────────────────────
-            echo "==> [5/7] Configuring Nginx..."
+            # ── 5. Configure Nginx ───────────────────────────────────────────
+            echo "==> [5/6] Configuring Nginx..."
             cp \$REPO/nginx/nginx.conf /etc/nginx/sites-available/ai-email-assistant
-            # Always ensure the symlink exists
             ln -sf /etc/nginx/sites-available/ai-email-assistant \
                    /etc/nginx/sites-enabled/ai-email-assistant
-            # Remove default site if it exists
             rm -f /etc/nginx/sites-enabled/default
             nginx -t && systemctl reload nginx
             echo "    Nginx configured."
 
-            # ── 6. Update systemd services ───────────────────────────────
-            echo "==> [6/7] Updating systemd services..."
+            # ── 6. Restart services ──────────────────────────────────────────
+            echo "==> [6/6] Restarting services..."
             cp \$REPO/deploy/ai-backend.service /etc/systemd/system/
             cp \$REPO/deploy/ai-backoffice.service /etc/systemd/system/
             systemctl daemon-reload
-
-            # ── 7. Restart services ──────────────────────────────────────
-            echo "==> [7/7] Restarting services..."
             systemctl restart ai-backend
             sleep 3
             systemctl restart ai-backoffice
 
-            # ── Health check ─────────────────────────────────────────────
+            # ── Health check ─────────────────────────────────────────────────
             echo "==> Health check..."
             sleep 5
 
@@ -182,13 +201,10 @@ jobs:
               exit 1
             fi
 
-            # Quick HTTP health checks
-            if command -v curl &>/dev/null; then
-              HTTP_CODE=\$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/health || echo "000")
-              echo "    Backend health: HTTP \$HTTP_CODE"
-              HTTP_CODE=\$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3001 || echo "000")
-              echo "    Backoffice:     HTTP \$HTTP_CODE"
-            fi
+            HTTP_CODE=\$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/health || echo "000")
+            echo "    Backend health: HTTP \$HTTP_CODE"
+            HTTP_CODE=\$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3001 || echo "000")
+            echo "    Backoffice:     HTTP \$HTTP_CODE"
 
             echo ""
             echo "══════════════════════════════════════════════════════════"
