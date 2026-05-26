@@ -201,7 +201,13 @@ pub async fn upload_document_handler(
         {
             Ok(()) => {
                 embedded_count += 1;
-                tracing::debug!("Chunk {} embedded for entry {}", i, entry.id);
+                tracing::debug!("Chunk {} embedded via Rig for entry {}", i, entry.id);
+                // Proactive rate-limit guard.
+                // Jina free tier = 500 RPM → 1 req / 120ms minimum; 150ms gives headroom.
+                // If still 429'd, embed_text retries automatically with the API's stated delay.
+                if i + 1 < chunks.len() {
+                    tokio::time::sleep(tokio::time::Duration::from_millis(150)).await;
+                }
             }
             Err(e) => {
                 // Delete the partial entry so the DB stays clean
