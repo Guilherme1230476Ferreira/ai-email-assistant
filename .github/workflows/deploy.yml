@@ -145,6 +145,8 @@ jobs:
           # ── Phase 2: Copy pre-built binary (avoids server compiling) ─────
           echo "==> [3/6] Deploying pre-built binary..."
           chmod +x ./artifact/ai-email-assistant
+          # Ensure the destination directory exists (cargo never ran on server)
+          $SSH "mkdir -p /opt/ai-email-assistant/target/release"
           $SCP ./artifact/ai-email-assistant root@127.0.0.1:/opt/ai-email-assistant/target/release/ai-email-assistant
           echo "    ✅ Binary deployed (compiled on GitHub-hosted runner)."
 
