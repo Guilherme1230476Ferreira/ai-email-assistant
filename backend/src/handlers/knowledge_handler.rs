@@ -193,18 +193,31 @@ pub async fn upload_document_handler(
 
     // Embed each chunk using Rig framework
     let pool = knowledge_repo.get_pool();
+    let mut embedded_count = 0i64;
     for (i, chunk) in chunks.iter().enumerate() {
         match rig_service
             .embed_and_store_chunk(entry.id, chunk, i as i32, &pool)
             .await
         {
             Ok(()) => {
+                embedded_count += 1;
                 tracing::debug!("Chunk {} embedded via Rig for entry {}", i, entry.id);
             }
             Err(e) => {
-                tracing::warn!("Rig embedding failed for chunk {}: {:?}", i, e);
-                // Store chunk without embedding as fallback
-                knowledge_repo.create_chunk(entry.id, chunk, i as i32, None).await.ok();
+                // Delete the partial entry so the DB stays clean
+                knowledge_repo.delete_entry(entry.id).await.ok();
+                tracing::error!(
+                    "Embedding API failed for chunk {} of entry {}: {:?}",
+                    i, entry.id, e
+                );
+                return Err(AppError::new(
+                    StatusCode::BAD_GATEWAY,
+                    format!(
+                        "Embedding API failed on chunk {}/{}: {:?}. \
+                         Check that EMBEDDING_API_KEY and EMBEDDING_API_URL are set correctly in the server .env.",
+                        i + 1, chunk_count, e
+                    ),
+                ));
             }
         }
     }
@@ -216,7 +229,7 @@ pub async fn upload_document_handler(
         Some(serde_json::json!({
             "entry_id": entry.id,
             "filename": file_name,
-            "chunks": chunk_count
+            "chunks": embedded_count
         })),
     ).await;
 
@@ -225,7 +238,7 @@ pub async fn upload_document_handler(
         entry_type: entry.entry_type,
         title: entry.title,
         content: entry.content,
-        chunk_count,
+        chunk_count: embedded_count,
         created_at: entry.created_at,
     };
 

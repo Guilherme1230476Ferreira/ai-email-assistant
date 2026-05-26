@@ -1,22 +1,17 @@
 //! # Rig RAG Service
 //!
-//! Integrates the **Rig** framework (`rig-core`) as the RAG pipeline backbone.
-//!
 //! Architecture:
 //! - **Rig OpenAI provider** (with custom base URL) → for Groq/OpenAI generation
-//! - **Rig OpenAI provider** (with Gemini endpoint) → for embeddings
-//! - **Custom `PgVectorIndex`** → implements Rig's vector retrieval,
-//!   bridging Rig's RAG pipeline to our existing pgvector tables
-//! - **`RigRagService`** → orchestrates the full RAG pipeline:
-//!   embed query → retrieve from knowledge base → build context → generate reply
+//! - **Direct reqwest call** → for Gemini embeddings (Rig's OpenAI-compat client
+//!   cannot parse Gemini's embedding response format)
+//! - **Custom `PgVectorIndex`** → bridges our pgvector tables to the RAG pipeline
+//! - **`RigRagService`** → orchestrates: embed query → retrieve → generate reply
 
 use std::sync::Arc;
 
 use pgvector::Vector;
-use rig::embeddings::{Embed, EmbeddingsBuilder, TextEmbedder};
-use rig::prelude::EmbeddingsClient;
 use rig::providers::openai;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use sqlx::{PgPool, Row};
 use text_splitter::TextSplitter;
 use uuid::Uuid;
@@ -24,27 +19,7 @@ use uuid::Uuid;
 use crate::app_error::AppError;
 use axum::http::StatusCode;
 
-// ─── Document types for Rig's Embed trait ───────────────────────────────────
-
-/// A knowledge document that implements Rig's `Embed` trait manually.
-/// The `text` field is embedded for vector generation.
-#[derive(Clone, Serialize, Deserialize, Debug)]
-pub struct KnowledgeDocument {
-    pub id: String,
-    pub text: String,
-    pub title: String,
-    pub chunk_index: i32,
-    pub entry_id: String,
-}
-
-/// Manual implementation of Rig's Embed trait
-/// (avoids derive macro's rig_core crate resolution issue)
-impl Embed for KnowledgeDocument {
-    fn embed(&self, embedder: &mut TextEmbedder) -> Result<(), rig::embeddings::EmbedError> {
-        embedder.embed(self.text.clone());
-        Ok(())
-    }
-}
+// ─── Retrieved context ───────────────────────────────────────────────────────
 
 /// A retrieved knowledge result from the vector store
 #[derive(Debug, Clone)]
@@ -56,49 +31,105 @@ pub struct RetrievedContext {
     pub entry_id: Option<Uuid>,
 }
 
-// ─── Custom pgvector VectorStoreIndex for Rig ───────────────────────────────
+// ─── Gemini embedding response structs ───────────────────────────────────────
 
-/// Bridges Rig's RAG pipeline to our PostgreSQL pgvector tables.
-/// Uses Rig's OpenAI-compatible embedding client for vector generation.
+#[derive(Deserialize)]
+struct EmbeddingData {
+    embedding: Vec<f64>,
+}
+
+#[derive(Deserialize)]
+struct EmbeddingResponse {
+    data: Vec<EmbeddingData>,
+}
+
+// ─── PgVectorIndex ───────────────────────────────────────────────────────────
+
+/// Bridges our PostgreSQL pgvector tables to the RAG pipeline.
+/// Uses direct reqwest calls for Gemini embeddings — Rig's OpenAI-compatible
+/// client returns `"data did not match any variant of untagged enum ApiResponse"`
+/// when parsing Gemini's response, so we call the endpoint ourselves.
 pub struct PgVectorIndex {
     pool: Arc<PgPool>,
-    embedding_client: openai::CompletionsClient,
+    embedding_base_url: String,
+    embedding_api_key: String,
     embedding_model_name: String,
+    http: reqwest::Client,
 }
 
 impl PgVectorIndex {
-    pub fn new(pool: Arc<PgPool>, embedding_client: openai::CompletionsClient, embedding_model_name: String) -> Self {
+    pub fn new(
+        pool: Arc<PgPool>,
+        embedding_base_url: String,
+        embedding_api_key: String,
+        embedding_model_name: String,
+    ) -> Self {
         Self {
             pool,
-            embedding_client,
+            embedding_base_url,
+            embedding_api_key,
             embedding_model_name,
+            http: reqwest::Client::new(),
         }
     }
 
-    /// Generate an embedding vector using Rig's OpenAI-compatible embedding client
+    /// Call the Gemini OpenAI-compatible embedding endpoint directly via reqwest.
+    /// Returns a float vector ready for pgvector storage.
     pub async fn embed_text(&self, text: &str) -> Result<Vec<f32>, AppError> {
-        let model = self.embedding_client.embedding_model(&self.embedding_model_name);
+        let url = format!(
+            "{}/embeddings",
+            self.embedding_base_url.trim_end_matches('/')
+        );
 
-        let embeddings = EmbeddingsBuilder::new(model)
-            .document(KnowledgeDocument {
-                id: Uuid::new_v4().to_string(),
-                text: text.to_string(),
-                title: String::new(),
-                chunk_index: 0,
-                entry_id: String::new(),
-            })
-            .map_err(|e| AppError::new(StatusCode::INTERNAL_SERVER_ERROR, format!("Rig embed error: {}", e)))?
-            .build()
+        let body = serde_json::json!({
+            "model": self.embedding_model_name,
+            "input": text
+        });
+
+        let response = self
+            .http
+            .post(&url)
+            .header("Authorization", format!("Bearer {}", self.embedding_api_key))
+            .header("Content-Type", "application/json")
+            .json(&body)
+            .send()
             .await
-            .map_err(|e| AppError::new(StatusCode::BAD_GATEWAY, format!("Rig Embedding API error: {}", e)))?;
+            .map_err(|e| {
+                AppError::new(
+                    StatusCode::BAD_GATEWAY,
+                    format!("Embedding API request failed: {}", e),
+                )
+            })?;
 
-        // Extract the embedding vector from Rig's response
-        if let Some((_doc, embeddings)) = embeddings.first() {
-            let embedding = embeddings.first_ref();
-            Ok(embedding.vec.iter().map(|&f| f as f32).collect())
-        } else {
-            Err(AppError::new(StatusCode::INTERNAL_SERVER_ERROR, "No embedding returned by Rig"))
+        if !response.status().is_success() {
+            let status = response.status();
+            let body_text = response.text().await.unwrap_or_default();
+            return Err(AppError::new(
+                StatusCode::BAD_GATEWAY,
+                format!("Embedding API returned {}: {}", status, body_text),
+            ));
         }
+
+        let parsed: EmbeddingResponse = response.json().await.map_err(|e| {
+            AppError::new(
+                StatusCode::BAD_GATEWAY,
+                format!("Failed to parse embedding response: {}", e),
+            )
+        })?;
+
+        let floats = parsed
+            .data
+            .into_iter()
+            .next()
+            .ok_or_else(|| {
+                AppError::new(StatusCode::BAD_GATEWAY, "No embedding data in response")
+            })?
+            .embedding
+            .into_iter()
+            .map(|f| f as f32)
+            .collect();
+
+        Ok(floats)
     }
 
     /// Search both knowledge_embeddings and email_embeddings for RAG context
@@ -114,7 +145,8 @@ impl PgVectorIndex {
         // 1. Search knowledge base (global entries)
         let kb_rows = sqlx::query(
             r#"
-            SELECT ke.id as entry_id, ke.title, kc.chunk_text, (1.0 - (kc.embedding <=> $1)) as similarity
+            SELECT ke.id as entry_id, ke.title, kc.chunk_text,
+                   (1.0 - (kc.embedding <=> $1)) as similarity
             FROM knowledge_embeddings kc
             JOIN knowledge_entries ke ON kc.entry_id = ke.id
             WHERE kc.embedding IS NOT NULL
@@ -170,16 +202,19 @@ impl PgVectorIndex {
         }
 
         // Sort by relevance score descending, take top results
-        results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        results.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         results.truncate(limit as usize);
 
         Ok(results)
     }
 }
 
-// ─── Rig RAG Service ────────────────────────────────────────────────────────
+// ─── RigRagService ───────────────────────────────────────────────────────────
 
-/// The main RAG service powered by the **Rig** framework.
 /// Orchestrates: embedding → retrieval → context building → LLM generation.
 pub struct RigRagService {
     pub vector_index: Arc<PgVectorIndex>,
@@ -188,11 +223,6 @@ pub struct RigRagService {
 }
 
 impl RigRagService {
-    /// Create a new Rig-powered RAG service.
-    ///
-    /// Uses the builder pattern from Rig 0.36 to create OpenAI-compatible clients:
-    /// - One for generation (Groq/OpenAI)
-    /// - One for embeddings (Gemini's OpenAI-compatible endpoint)
     pub fn new(
         generation_base_url: &str,
         generation_api_key: &str,
@@ -202,8 +232,7 @@ impl RigRagService {
         embedding_model: &str,
         pool: Arc<PgPool>,
     ) -> Self {
-        // Create Rig OpenAI-compatible client for generation (Groq)
-        // Using completions API (compatible with Groq/OpenAI v1 endpoints)
+        // Rig OpenAI-compatible client for generation (Groq/OpenAI)
         let generation_client = openai::Client::builder()
             .api_key(generation_api_key)
             .base_url(generation_base_url)
@@ -211,17 +240,11 @@ impl RigRagService {
             .expect("Failed to build Rig generation client")
             .completions_api();
 
-        // Create Rig OpenAI-compatible client for embeddings (Gemini OpenAI-compat endpoint)
-        let embedding_client = openai::Client::builder()
-            .api_key(embedding_api_key)
-            .base_url(embedding_base_url)
-            .build()
-            .expect("Failed to build Rig embedding client")
-            .completions_api();
-
+        // Embeddings use direct reqwest — Rig's client can't parse Gemini responses
         let vector_index = Arc::new(PgVectorIndex::new(
             pool,
-            embedding_client,
+            embedding_base_url.to_string(),
+            embedding_api_key.to_string(),
             embedding_model.to_string(),
         ));
 
@@ -232,7 +255,7 @@ impl RigRagService {
         }
     }
 
-    /// Embed and store a knowledge chunk using Rig's embedding pipeline
+    /// Embed and store a knowledge chunk via direct Gemini embedding call
     pub async fn embed_and_store_chunk(
         &self,
         entry_id: Uuid,
@@ -257,7 +280,12 @@ impl RigRagService {
         .bind(&vec)
         .execute(pool)
         .await
-        .map_err(|e| AppError::new(StatusCode::INTERNAL_SERVER_ERROR, format!("DB error: {}", e)))?;
+        .map_err(|e| {
+            AppError::new(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("DB error storing chunk: {}", e),
+            )
+        })?;
 
         Ok(())
     }
