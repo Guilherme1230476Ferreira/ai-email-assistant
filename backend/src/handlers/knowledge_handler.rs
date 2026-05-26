@@ -201,13 +201,7 @@ pub async fn upload_document_handler(
         {
             Ok(()) => {
                 embedded_count += 1;
-                tracing::debug!("Chunk {} embedded via Rig for entry {}", i, entry.id);
-                // Proactive rate-limit: Gemini free tier = 100 req/min = 1 req/600ms.
-                // Sleep 650ms between chunks so we don't burn the quota.
-                // The retry logic in embed_text is the safety net if we still hit 429.
-                if i + 1 < chunks.len() {
-                    tokio::time::sleep(tokio::time::Duration::from_millis(650)).await;
-                }
+                tracing::debug!("Chunk {} embedded for entry {}", i, entry.id);
             }
             Err(e) => {
                 // Delete the partial entry so the DB stays clean
