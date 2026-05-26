@@ -16,10 +16,12 @@ use sqlx::Row;
 
 use crate::{
     app_error::AppError,
+    middleware::auth::AuthUser,
     middleware::rbac::AdminUser,
     models::dto::{CreateQAPairRequest, KnowledgeEntryResponse, PaginatedResponse, PaginationParams},
     repositories::{audit_repo::AuditRepository, knowledge_repo::KnowledgeRepository},
     services::rig_service::RigRagService,
+    state::AppState,
 };
 
 /// Extract text from a PDF file's bytes using pdf-extract
@@ -388,4 +390,19 @@ pub async fn delete_knowledge_entry_handler(
     } else {
         Err(AppError::new(StatusCode::NOT_FOUND, "Entry not found"))
     }
+}
+
+/// GET /api/knowledge/stats
+/// Returns the top 10 KB entries ordered by retrieval_count.
+/// Used by the analytics dashboard bar chart.
+#[axum::debug_handler(state = AppState)]
+pub async fn get_knowledge_stats_handler(
+    State(knowledge_repo): State<Arc<KnowledgeRepository>>,
+    _auth_user: AuthUser,
+) -> Result<impl IntoResponse, AppError> {
+    let stats = knowledge_repo
+        .get_retrieval_stats()
+        .await
+        .map_err(|e| AppError::new(StatusCode::INTERNAL_SERVER_ERROR, format!("{:?}", e)))?;
+    Ok((StatusCode::OK, Json(stats)))
 }

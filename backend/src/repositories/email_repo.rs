@@ -2,7 +2,7 @@ use crate::models::domain::Email;
 #[cfg(test)]
 use crate::models::domain::User;
 use pgvector::Vector;
-use sqlx::PgPool;
+use sqlx::{PgPool, Row};
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -225,6 +225,99 @@ impl EmailRepository {
             knowledge_matches,
             kb_hit_rate,
         })
+    }
+
+    /// Bucket all self-similarity scores (prompt↔response) for a user's emails
+    /// into 5 ranges, returning counts per bucket. Used by the histogram chart.
+    pub async fn get_similarity_distribution(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Vec<crate::models::dto::SimilarityBucket>, sqlx::Error> {
+        let rows = sqlx::query(
+            r#"
+            SELECT
+                width_bucket(
+                    CAST(1.0 - (ee.content_embedding <=> ee.response_embedding) AS float8),
+                    0.0::float8, 1.0001::float8, 5
+                ) AS bucket,
+                COUNT(*)::bigint AS cnt
+            FROM email_embeddings ee
+            JOIN emails e ON e.id = ee.email_id
+            WHERE e.user_id = $1
+              AND ee.content_embedding IS NOT NULL
+              AND ee.response_embedding IS NOT NULL
+            GROUP BY bucket
+            ORDER BY bucket
+            "#,
+        )
+        .bind(user_id)
+        .fetch_all(&*self.pool)
+        .await?;
+
+        let labels = ["0.0–0.2", "0.2–0.4", "0.4–0.6", "0.6–0.8", "0.8–1.0"];
+        // Pre-fill all 5 buckets with 0
+        let mut buckets: Vec<crate::models::dto::SimilarityBucket> = labels
+            .iter()
+            .map(|l| crate::models::dto::SimilarityBucket {
+                label: l.to_string(),
+                count: 0,
+            })
+            .collect();
+
+        for row in &rows {
+            let bucket_num: i32 = row.try_get("bucket").unwrap_or(0);
+            let count: i64 = row.try_get("cnt").unwrap_or(0);
+            // width_bucket returns 1..=5; adjust to 0-indexed
+            let idx = ((bucket_num - 1).clamp(0, 4)) as usize;
+            buckets[idx].count = count;
+        }
+
+        Ok(buckets)
+    }
+
+    /// Per-day average similarity and KB-hit-rate for the last `days` days.
+    /// Used by the line chart on the analytics page.
+    pub async fn get_telemetry_history(
+        &self,
+        user_id: Uuid,
+        days: i32,
+    ) -> Result<Vec<crate::models::dto::TelemetryHistoryPoint>, sqlx::Error> {
+        let rows = sqlx::query(
+            r#"
+            SELECT
+                DATE(e.created_at)::text AS day,
+                COALESCE(AVG(
+                    CASE
+                        WHEN ee.content_embedding IS NOT NULL AND ee.response_embedding IS NOT NULL
+                        THEN CAST(1.0 - (ee.content_embedding <=> ee.response_embedding) AS float8)
+                        ELSE NULL
+                    END
+                ), 0.0)::float8 AS avg_sim,
+                COALESCE(
+                    COUNT(ee.id)::float8 / NULLIF(COUNT(e.id)::float8, 0),
+                    0.0
+                )::float8 AS hit_rate
+            FROM emails e
+            LEFT JOIN email_embeddings ee ON e.id = ee.email_id
+            WHERE e.user_id = $1
+              AND e.created_at >= NOW() - ($2::int * INTERVAL '1 day')
+            GROUP BY DATE(e.created_at)
+            ORDER BY day ASC
+            "#,
+        )
+        .bind(user_id)
+        .bind(days)
+        .fetch_all(&*self.pool)
+        .await?;
+
+        Ok(rows
+            .iter()
+            .map(|r| crate::models::dto::TelemetryHistoryPoint {
+                day: r.try_get("day").unwrap_or_default(),
+                avg_similarity: r.try_get("avg_sim").unwrap_or(0.0),
+                kb_hit_rate: r.try_get("hit_rate").unwrap_or(0.0),
+            })
+            .collect())
     }
 
     pub async fn find_similar_emails(

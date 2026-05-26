@@ -194,6 +194,18 @@ pub async fn create_router(app_state: AppState) -> Router {
             axum::routing::delete(knowledge_handler::delete_knowledge_entry_handler),
         )
         .route(
+            "/api/knowledge/stats",
+            axum::routing::get(knowledge_handler::get_knowledge_stats_handler),
+        )
+        .route(
+            "/api/telemetry/distribution",
+            axum::routing::get(email_handler::get_similarity_distribution_handler),
+        )
+        .route(
+            "/api/telemetry/history",
+            axum::routing::get(email_handler::get_telemetry_history_handler),
+        )
+        .route(
             "/api/extension/ping",
             axum::routing::post(extension_handler::extension_ping_handler),
         )

@@ -7,7 +7,7 @@
   import {
     LayoutDashboard, Mail, Users, Shield, Settings,
     LogOut, Sparkles, Menu, X, ShieldAlert, BookOpen,
-    ChevronsLeft, ChevronsRight, Globe, Puzzle
+    ChevronsLeft, ChevronsRight, Globe, Puzzle, BarChart2
   } from '@lucide/svelte';
 
   let { children, data } = $props();
@@ -36,6 +36,7 @@
   const allNav: NavItem[] = [
     { key: 'nav.dashboard', href: '/', icon: LayoutDashboard },
     { key: 'nav.emails',    href: '/emails', icon: Mail },
+    { key: 'nav.analytics', href: '/analytics', icon: BarChart2 },
     { key: 'nav.users',     href: '/users',  icon: Users,  adminOnly: true },
     { key: 'nav.roles',     href: '/roles',  icon: Shield, adminOnly: true },
     { key: 'nav.settings',  href: '/settings', icon: Settings, adminOnly: true },

@@ -169,7 +169,23 @@ const translations: Record<string, Record<Locale, string>> = {
 	'ext.connected': { en: 'Extension connected', pt: 'Extensao conectada' },
 	'ext.disconnected': { en: 'Extension offline', pt: 'Extensao offline' },
 	'ext.tooltip_on': { en: 'Chrome extension is active', pt: 'Extensao Chrome ativa' },
-	'ext.tooltip_off': { en: 'Chrome extension not detected', pt: 'Extensao Chrome nao detetada' },};
+	'ext.tooltip_off': { en: 'Chrome extension not detected', pt: 'Extensao Chrome nao detetada' },	// Analytics Page
+	'nav.analytics': { en: 'Analytics', pt: 'Análise' },
+	'analytics.title': { en: 'RAG Analytics', pt: 'Análise RAG' },
+	'analytics.subtitle': { en: 'Understand how your knowledge base is performing', pt: 'Entenda como a sua base de conhecimento está a funcionar' },
+	'analytics.kb_frequency': { en: 'KB Entry Retrieval Frequency', pt: 'Frequência de Acesso às Entradas' },
+	'analytics.kb_frequency_desc': { en: 'Top knowledge entries by retrieval count across all generations', pt: 'Entradas mais acedidas durante as gerações' },
+	'analytics.similarity_dist': { en: 'Similarity Score Distribution', pt: 'Distribuição de Pontuações de Similaridade' },
+	'analytics.similarity_dist_desc': { en: 'How often emails achieve each similarity range — a peak at 0.8–1.0 means strong embedding quality', pt: 'Com que frequência os emails atingem cada nível de similaridade' },
+	'analytics.metrics_over_time': { en: 'RAG Metrics Over Time (30 days)', pt: 'Métricas RAG ao Longo do Tempo (30 dias)' },
+	'analytics.metrics_over_time_desc': { en: 'Daily average similarity score and KB hit rate', pt: 'Similaridade média diária e taxa de acertos da base de conhecimento' },
+	'analytics.no_data': { en: 'No data yet — generate some emails first', pt: 'Sem dados — gere alguns emails primeiro' },
+	'analytics.avg_similarity': { en: 'Avg. Similarity', pt: 'Sim. Média' },
+	'analytics.kb_hit_rate': { en: 'KB Hit Rate', pt: 'Taxa de Acertos' },
+	'analytics.retrievals': { en: 'retrievals', pt: 'acessos' },
+	'analytics.document': { en: 'Document', pt: 'Documento' },
+	'analytics.qa_pair': { en: 'Q&A Pair', pt: 'Par P&R' },
+	'analytics.no_retrievals': { en: 'No entries retrieved yet', pt: 'Nenhuma entrada acedida ainda' },};
 
 export function t(key: string, currentLocale: Locale): string {
 	return translations[key]?.[currentLocale] || key;
@@ -178,4 +194,5 @@ export function t(key: string, currentLocale: Locale): string {
 export const currentT = derived(locale, ($locale) => {
 	return (key: string) => t(key, $locale);
 });
+
 

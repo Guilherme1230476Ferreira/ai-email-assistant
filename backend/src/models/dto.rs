@@ -171,6 +171,32 @@ pub struct RagTraceItem {
     pub score: f64,
 }
 
+/// Similarity score histogram bucket for the analytics dashboard.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct SimilarityBucket {
+    /// Human-readable range label, e.g. "0.0–0.2"
+    pub label: String,
+    pub count: i64,
+}
+
+/// One data-point in the RAG metrics-over-time line chart.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct TelemetryHistoryPoint {
+    /// ISO date string "YYYY-MM-DD"
+    pub day: String,
+    pub avg_similarity: f64,
+    pub kb_hit_rate: f64,
+}
+
+/// KB entry retrieval frequency for the analytics bar chart.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct KnowledgeRetrievalStat {
+    pub id: Uuid,
+    pub title: String,
+    pub entry_type: String,
+    pub retrieval_count: i64,
+}
+
 /// Query parameters for paginated list endpoints.
 #[derive(Debug, Deserialize, IntoParams)]
 pub struct PaginationParams {

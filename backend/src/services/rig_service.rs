@@ -52,6 +52,8 @@ pub struct RetrievedContext {
     pub title: String,
     pub text: String,
     pub score: f64,
+    /// Set for KB entries so the stream handler can increment retrieval_count.
+    pub entry_id: Option<Uuid>,
 }
 
 // ─── Custom pgvector VectorStoreIndex for Rig ───────────────────────────────
@@ -112,7 +114,7 @@ impl PgVectorIndex {
         // 1. Search knowledge base (global entries)
         let kb_rows = sqlx::query(
             r#"
-            SELECT ke.title, kc.chunk_text, (1.0 - (kc.embedding <=> $1)) as similarity
+            SELECT ke.id as entry_id, ke.title, kc.chunk_text, (1.0 - (kc.embedding <=> $1)) as similarity
             FROM knowledge_embeddings kc
             JOIN knowledge_entries ke ON kc.entry_id = ke.id
             WHERE kc.embedding IS NOT NULL
@@ -131,6 +133,7 @@ impl PgVectorIndex {
                 title: row.get("title"),
                 text: row.get("chunk_text"),
                 score: row.get::<f64, _>("similarity"),
+                entry_id: row.try_get("entry_id").ok(),
             });
         }
 
@@ -161,6 +164,7 @@ impl PgVectorIndex {
                     title: "Past Email".to_string(),
                     text: format!("Received: {}\nReplied: {}", content, resp),
                     score: row.get::<f64, _>("similarity"),
+                    entry_id: None,
                 });
             }
         }

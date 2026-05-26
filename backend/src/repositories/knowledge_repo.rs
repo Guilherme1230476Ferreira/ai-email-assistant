@@ -157,4 +157,46 @@ impl KnowledgeRepository {
             .await?;
         Ok(result.rows_affected() > 0)
     }
+
+    /// Increment `retrieval_count` for each KB entry that was hit during generation.
+    /// Called from the stream handler after every RAG retrieval.
+    pub async fn increment_retrieval_counts(&self, entry_ids: &[Uuid]) -> Result<(), sqlx::Error> {
+        if entry_ids.is_empty() {
+            return Ok(());
+        }
+        sqlx::query(
+            "UPDATE knowledge_entries SET retrieval_count = retrieval_count + 1 WHERE id = ANY($1)",
+        )
+        .bind(entry_ids)
+        .execute(&*self.pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Return the top 10 KB entries ordered by retrieval_count descending.
+    /// Used by the analytics dashboard bar chart.
+    pub async fn get_retrieval_stats(
+        &self,
+    ) -> Result<Vec<crate::models::dto::KnowledgeRetrievalStat>, sqlx::Error> {
+        let rows = sqlx::query(
+            r#"
+            SELECT id, title, entry_type, retrieval_count
+            FROM knowledge_entries
+            ORDER BY retrieval_count DESC
+            LIMIT 10
+            "#,
+        )
+        .fetch_all(&*self.pool)
+        .await?;
+
+        Ok(rows
+            .iter()
+            .map(|r| crate::models::dto::KnowledgeRetrievalStat {
+                id: r.get("id"),
+                title: r.get("title"),
+                entry_type: r.get("entry_type"),
+                retrieval_count: r.get("retrieval_count"),
+            })
+            .collect())
+    }
 }

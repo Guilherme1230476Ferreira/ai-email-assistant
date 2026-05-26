@@ -255,6 +255,7 @@
         </p>
 
         <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <!-- svelte-ignore a11y_click_events_have_key_events -->
         <div
           class="relative flex flex-col items-center justify-center rounded-xl border-2 border-dashed px-6 py-12 transition cursor-pointer
             {dragOver

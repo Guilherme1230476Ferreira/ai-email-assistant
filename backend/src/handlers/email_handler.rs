@@ -19,6 +19,7 @@ use crate::{
     repositories::{
         audit_repo::AuditRepository,
         email_repo::EmailRepository,
+        knowledge_repo::KnowledgeRepository,
         settings_repo::SettingsRepository,
     },
     services::llm_service::LlmService,
@@ -168,6 +169,7 @@ pub async fn generate_email_stream_handler(
     State(settings_repo): State<Arc<SettingsRepository>>,
     State(llm_service): State<Arc<dyn LlmService + Send + Sync>>,
     State(email_repo): State<Arc<EmailRepository>>,
+    State(knowledge_repo): State<Arc<KnowledgeRepository>>,
     State(rig_service): State<Arc<RigRagService>>,
     State(_config): State<Arc<Config>>,
     auth_user: AuthUser,
@@ -220,11 +222,17 @@ pub async fn generate_email_stream_handler(
                 {
                     Ok(results) => {
                         let mut total_score = 0.0f64;
+                        // Collect distinct entry_ids for retrieval count tracking
+                        let mut seen_entry_ids: std::collections::HashSet<uuid::Uuid> =
+                            std::collections::HashSet::new();
                         for ctx in &results {
                             if ctx.title == "Past Email" {
                                 email_count += 1;
                             } else {
                                 kb_count += 1;
+                                if let Some(eid) = ctx.entry_id {
+                                    seen_entry_ids.insert(eid);
+                                }
                             }
                             total_score += ctx.score;
                             context_str.push_str(&format!(
@@ -247,6 +255,11 @@ pub async fn generate_email_stream_handler(
                                 if email_count != 1 { "s" } else { "" },
                                 avg_score
                             )));
+                        // Fire-and-forget: increment retrieval counts for hit KB entries
+                        if !seen_entry_ids.is_empty() {
+                            let ids: Vec<uuid::Uuid> = seen_entry_ids.into_iter().collect();
+                            let _ = knowledge_repo.increment_retrieval_counts(&ids).await;
+                        }
                     }
                     Err(e) => {
                         yield Ok(axum::response::sse::Event::default()
@@ -482,4 +495,32 @@ pub async fn get_emails_handler(
     };
 
     Ok((StatusCode::OK, Json(response)))
+}
+
+/// GET /api/telemetry/distribution
+/// Returns similarity score histogram (5 buckets, 0.0–1.0) for the authenticated user.
+#[axum::debug_handler(state = AppState)]
+pub async fn get_similarity_distribution_handler(
+    State(email_repo): State<Arc<EmailRepository>>,
+    auth_user: AuthUser,
+) -> Result<impl IntoResponse, AppError> {
+    let buckets = email_repo
+        .get_similarity_distribution(auth_user.0.id)
+        .await
+        .map_err(|e| AppError::new(StatusCode::INTERNAL_SERVER_ERROR, format!("{:?}", e)))?;
+    Ok((StatusCode::OK, Json(buckets)))
+}
+
+/// GET /api/telemetry/history
+/// Returns per-day avg_similarity + kb_hit_rate for the last 30 days.
+#[axum::debug_handler(state = AppState)]
+pub async fn get_telemetry_history_handler(
+    State(email_repo): State<Arc<EmailRepository>>,
+    auth_user: AuthUser,
+) -> Result<impl IntoResponse, AppError> {
+    let history = email_repo
+        .get_telemetry_history(auth_user.0.id, 30)
+        .await
+        .map_err(|e| AppError::new(StatusCode::INTERNAL_SERVER_ERROR, format!("{:?}", e)))?;
+    Ok((StatusCode::OK, Json(history)))
 }

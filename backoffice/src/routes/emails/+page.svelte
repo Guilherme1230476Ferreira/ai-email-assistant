@@ -287,8 +287,9 @@
                             {:else if Array.isArray(traceMap[email.id]) && (traceMap[email.id] as any[]).length === 0}
                                 <p class="text-xs text-[var(--color-muted)] py-2">{t('emails.rag_trace_empty', currentLocale)}</p>
                             {:else if Array.isArray(traceMap[email.id])}
+                                {@const traceItems = traceMap[email.id] as TraceItem[]}
                                 <div class="space-y-2">
-                                    {#each traceMap[email.id] as item}
+                                    {#each traceItems as item}
                                         <div class="rounded-md bg-[var(--color-surface-2)] border border-[var(--color-border)] p-2.5 text-xs">
                                             <div class="flex items-center justify-between mb-1.5 gap-2">
                                                 <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold
@@ -448,9 +449,3 @@
     </div>
   </div>
 {/if}
-
-<style>
-  .animate-spin-slow {
-    animation: spin 3s linear infinite;
-  }
-</style>
