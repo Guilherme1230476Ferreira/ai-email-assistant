@@ -22,4 +22,6 @@ pub struct SettingsResponse {
     pub llm_model: String,
     pub has_api_key: bool,
     pub masked_api_key: Option<String>,
+    /// The active embedding model read from EMBEDDING_MODEL env var.
+    pub embedding_model: String,
 }

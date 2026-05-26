@@ -6,6 +6,7 @@ use serde_json::json;
 
 use crate::{
     app_error::AppError,
+    infrastructure::config::Config,
     middleware::rbac::AdminUser,
     models::settings_dto::{SettingsResponse, UpdateSettingsRequest, VerifySettingsRequest},
     repositories::{audit_repo::AuditRepository, settings_repo::SettingsRepository},
@@ -28,6 +29,7 @@ use crate::{
 pub async fn get_settings_handler(
     _admin: AdminUser,
     State(settings_repo): State<Arc<SettingsRepository>>,
+    State(config): State<Arc<Config>>,
 ) -> Result<impl IntoResponse, AppError> {
     let settings = settings_repo.get_settings().await?;
 
@@ -41,6 +43,7 @@ pub async fn get_settings_handler(
         } else {
             None
         },
+        embedding_model: config.embedding_model.clone(),
     };
 
     Ok((StatusCode::OK, Json(response)))
@@ -64,6 +67,7 @@ pub async fn update_settings_handler(
     admin: AdminUser,
     State(settings_repo): State<Arc<SettingsRepository>>,
     State(audit_repo): State<Arc<AuditRepository>>,
+    State(config): State<Arc<Config>>,
     Json(request): Json<UpdateSettingsRequest>,
 ) -> Result<impl IntoResponse, AppError> {
     let settings = settings_repo
@@ -90,6 +94,7 @@ pub async fn update_settings_handler(
         } else {
             None
         },
+        embedding_model: config.embedding_model.clone(),
     };
 
     Ok((StatusCode::OK, Json(response)))

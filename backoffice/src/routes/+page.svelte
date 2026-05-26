@@ -29,7 +29,7 @@
     model: data.llm?.llm_model || 'Unknown',
     base_url: data.llm?.llm_base_url || 'Unknown',
     has_api_key: !!data.llm?.has_api_key,
-    embedding_model: 'text-embedding-3-small' 
+    embedding_model: data.llm?.embedding_model || t('dash.not_set', currentLocale)
   });
 
   // Real Postgres-driven RAG health metrics
