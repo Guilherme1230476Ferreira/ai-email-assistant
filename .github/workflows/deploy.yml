@@ -116,8 +116,21 @@ jobs:
             echo "==> [3/7] Building Rust backend (release)..."
             cd \$REPO/backend
             export SQLX_OFFLINE=true
-            cargo build --release 2>&1 | tail -5
-            echo "    Backend compiled."
+            # Increase timeout and retry count to cope with slow crates.io access
+            export CARGO_HTTP_TIMEOUT=180
+            export CARGO_NET_RETRY=5
+            # Capture build output AND exit code (pipe would swallow exit code)
+            set +e
+            cargo build --release 2>&1 | tail -20
+            CARGO_EXIT=\${PIPESTATUS[0]}
+            set -e
+            if [ "\$CARGO_EXIT" -ne 0 ]; then
+              echo "    ❌ Backend build FAILED (exit \$CARGO_EXIT)"
+              echo "    Last 30 lines of backend journal:"
+              journalctl -u ai-backend -n 30 --no-pager || true
+              exit \$CARGO_EXIT
+            fi
+            echo "    Backend compiled. ✅"
 
             # ── 4. Build SvelteKit backoffice ────────────────────────────
             echo "==> [4/7] Building SvelteKit backoffice..."

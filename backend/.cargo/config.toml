@@ -1,1 +1,9 @@
-# Empty — using default crates.io source
+[net]
+# Retry failed downloads up to 5 times (helps on slow/restricted networks like vs224)
+retry = 5
+
+[http]
+# 3-minute timeout per request — university server is slow to reach crates.io
+timeout = 180
+# Multiplexed HTTP/2 for faster parallel downloads
+multiplexing = true
