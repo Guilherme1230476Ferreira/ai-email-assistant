@@ -94,7 +94,8 @@ export const api = {
 		onToken: (token: string) => void,
 		onError: (err: string) => void,
 		onDone: () => void,
-		onLog?: (msg: string) => void
+		onLog?: (msg: string) => void,
+		thread?: Array<{ role: string; content: string }>
 	) => {
 		const headers = authHeaders();
 
@@ -102,7 +103,7 @@ export const api = {
 			const res = await fetch('/api/emails/generate/stream', {
 				method: 'POST',
 				headers,
-				body: JSON.stringify({ prompt })
+				body: JSON.stringify({ prompt, thread: thread ?? null })
 			});
 
 			if (!res.ok) {

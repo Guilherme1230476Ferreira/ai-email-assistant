@@ -178,7 +178,18 @@ pub async fn upload_document_handler(
         ));
     }
 
-    // Create the entry
+    // ── Re-upload detection ───────────────────────────────────────────────────
+    // If a document with this filename already exists, delete it (and all its
+    // embeddings, via ON DELETE CASCADE) so stale vectors don't pollute results.
+    if let Ok(Some(existing)) = knowledge_repo.find_entry_by_title(&file_name).await {
+        tracing::info!(
+            "Re-upload detected for \"{}\": replacing entry {} with fresh embeddings",
+            file_name, existing.id
+        );
+        knowledge_repo.delete_entry(existing.id).await.ok();
+    }
+
+    // Create the fresh entry
     let entry = knowledge_repo
         .create_entry("document", &file_name, &text)
         .await
@@ -187,7 +198,7 @@ pub async fn upload_document_handler(
             AppError::new(StatusCode::INTERNAL_SERVER_ERROR, "Failed to create document entry")
         })?;
 
-    // Chunk text using the text-splitter framework (semantic-aware splitting)
+    // Chunk text using the text-splitter framework (semantic-aware splitting with overlap)
     let chunks = RigRagService::chunk_document(&text);
     let chunk_count = chunks.len();
 
@@ -363,11 +374,13 @@ pub async fn get_email_rag_trace_handler(
 
     let floats: Vec<f32> = embedding_vec.to_vec();
 
-    // 2. Re-run the same vector search the RAG pipeline uses
-    //    (email_id used as a stand-in for user_id — KB search ignores it)
+    // 2. Re-run the same vector search the RAG pipeline uses.
+    //    We pass "" as query_text: the original text isn't stored, so BM25
+    //    contributes 0 here — but semantic/cosine ranking is fully preserved
+    //    and this is only for tracing, not live generation.
     let results = rig_service
         .vector_index
-        .search_all_context(&floats, email_id, 5)
+        .search_all_context("", &floats, email_id, 5)
         .await
         .map_err(|e| AppError::new(StatusCode::INTERNAL_SERVER_ERROR, format!("Search error: {:?}", e)))?;
 

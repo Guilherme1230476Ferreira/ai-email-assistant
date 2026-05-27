@@ -7,6 +7,7 @@ use axum::{
     response::IntoResponse,
 };
 use futures_util::StreamExt;
+use reqwest::Client as HttpClient;
 
 use crate::{
     app_error::AppError,
@@ -23,9 +24,68 @@ use crate::{
         settings_repo::SettingsRepository,
     },
     services::llm_service::LlmService,
+    services::rag_metrics::{compute_faithfulness, compute_context_precision},
     services::rig_service::RigRagService,
     state::AppState,
 };
+
+/// Rewrite a raw email text into a concise, retrieval-optimised search query.
+///
+/// Uses the configured LLM with a fixed instruction prompt (max 60 tokens).
+/// On any error the original prompt is returned unchanged so generation
+/// continues without interruption.
+async fn reformulate_query(
+    prompt: &str,
+    base_url: &str,
+    model: &str,
+    api_key: &str,
+) -> String {
+    let url = format!("{}/chat/completions", base_url.trim_end_matches('/'));
+
+    let body = serde_json::json!({
+        "model": model,
+        "messages": [
+            {
+                "role": "system",
+                "content": "You are a search query optimizer for an email assistant. \
+                             Extract the core subject, topics and keywords from the following \
+                             email text for semantic document retrieval. \
+                             Output ONLY a short, dense search query (max 20 words). \
+                             No preamble, no explanation."
+            },
+            { "role": "user", "content": prompt }
+        ],
+        "max_tokens": 60,
+        "temperature": 0.0
+    });
+
+    let result = HttpClient::new()
+        .post(&url)
+        .header("Authorization", format!("Bearer {}", api_key))
+        .header("Content-Type", "application/json")
+        .json(&body)
+        .send()
+        .await;
+
+    match result {
+        Ok(res) if res.status().is_success() => {
+            if let Ok(json) = res.json::<serde_json::Value>().await {
+                if let Some(text) = json["choices"][0]["message"]["content"].as_str() {
+                    let q = text.trim().to_string();
+                    if !q.is_empty() {
+                        tracing::debug!("Query reformulated: {:?} -> {:?}", prompt, q);
+                        return q;
+                    }
+                }
+            }
+        }
+        Ok(res) => tracing::warn!("Query reformulation API returned {}", res.status()),
+        Err(e) => tracing::warn!("Query reformulation request failed: {}", e),
+    }
+
+    prompt.to_string() // fallback
+}
+
 
 #[utoipa::path(
     post,
@@ -68,7 +128,7 @@ pub async fn generate_email_handler(
 
             // Use Rig's unified context search (knowledge base + past emails)
             if let Ok(results) = rig_service.vector_index
-                .search_all_context(&embedding_floats, auth_user.0.id, 5)
+                .search_all_context(&request.prompt, &embedding_floats, auth_user.0.id, 5)
                 .await
             {
                 for (i, ctx) in results.iter().enumerate() {
@@ -192,32 +252,68 @@ pub async fn generate_email_stream_handler(
     let model_name = settings.llm_model.clone();
 
     let sse_stream = async_stream::stream! {
+        // Stage 0: Query reformulation
+        yield Ok::<_, std::convert::Infallible>(
+            axum::response::sse::Event::default()
+                .event("log")
+                .data("> [0/5] Reformulating query for retrieval...")
+        );
+
+        // Build thread-aware retrieval query: prepend thread summary if provided
+        let thread_summary = request.thread.as_ref().map(|msgs| {
+            msgs.iter()
+                .map(|m| format!("[{}]: {}", m.role, m.content))
+                .collect::<Vec<_>>()
+                .join(" | ")
+        });
+
+        let raw_retrieval_query = if let Some(ref ts) = thread_summary {
+            format!("{} | Latest: {}", ts, prompt)
+        } else {
+            prompt.clone()
+        };
+
+        let retrieval_query = reformulate_query(
+            &raw_retrieval_query,
+            &settings.llm_base_url,
+            &settings.llm_model,
+            &api_key,
+        ).await;
+
+        yield Ok(axum::response::sse::Event::default()
+            .event("log")
+            .data(format!("> [0/5] Query: {:?}", &retrieval_query[..retrieval_query.len().min(80)])));
+
         // Stage 1: Embedding
         yield Ok::<_, std::convert::Infallible>(
-            axum::response::sse::Event::default().event("log").data("> [1/4] Embedding prompt with vector model...")
+            axum::response::sse::Event::default().event("log").data("> [1/5] Embedding query with vector model...")
         );
 
         let mut context_str = String::new();
         let mut prompt_embedding = None;
         let mut kb_count: usize = 0;
         let mut email_count: usize = 0;
+        // For RAG quality metrics
+        let mut context_chunk_texts: Vec<String> = Vec::new();
+        let mut retrieval_scores: Vec<f64> = Vec::new();
+        let retrieval_start = std::time::Instant::now();
 
-        match rig_service.vector_index.embed_text(&prompt).await {
+        match rig_service.vector_index.embed_text(&retrieval_query).await {
             Ok(embedding_floats) => {
                 let embed_dim = embedding_floats.len();
                 yield Ok(axum::response::sse::Event::default()
                     .event("log")
-                    .data(format!("> [1/4] Embedding ready ({} dims)", embed_dim)));
+                    .data(format!("> [1/5] Embedding ready ({} dims)", embed_dim)));
 
                 let vec = pgvector::Vector::from(embedding_floats.clone());
 
                 // Stage 2: RAG search
                 yield Ok(axum::response::sse::Event::default()
                     .event("log")
-                    .data("> [2/4] Searching knowledge base + past emails..."));
+                    .data("> [2/5] Hybrid search (semantic + BM25) + reranking..."));
 
                 match rig_service.vector_index
-                    .search_all_context(&embedding_floats, user_id, 5)
+                    .search_all_context(&retrieval_query, &embedding_floats, user_id, 5)
                     .await
                 {
                     Ok(results) => {
@@ -235,6 +331,8 @@ pub async fn generate_email_stream_handler(
                                 }
                             }
                             total_score += ctx.score;
+                            retrieval_scores.push(ctx.score);
+                            context_chunk_texts.push(ctx.text.clone());
                             context_str.push_str(&format!(
                                 "--- Context [{}] (relevance: {:.2}):\n{}\n\n",
                                 ctx.title, ctx.score, ctx.text
@@ -248,7 +346,7 @@ pub async fn generate_email_stream_handler(
                         yield Ok(axum::response::sse::Event::default()
                             .event("log")
                             .data(format!(
-                                "> [2/4] Retrieved {} KB chunk{}, {} past email{} (avg similarity: {:.2})",
+                                "> [2/5] Retrieved {} KB chunk{}, {} past email{} (avg hybrid score: {:.2})",
                                 kb_count,
                                 if kb_count != 1 { "s" } else { "" },
                                 email_count,
@@ -264,7 +362,7 @@ pub async fn generate_email_stream_handler(
                     Err(e) => {
                         yield Ok(axum::response::sse::Event::default()
                             .event("log")
-                            .data(format!("> [2/4] Warning: vector search failed ({})", e.message())));
+                            .data(format!("> [2/5] Warning: vector search failed ({})", e.message())));
                     }
                 }
                 prompt_embedding = Some(vec);
@@ -272,14 +370,29 @@ pub async fn generate_email_stream_handler(
             Err(e) => {
                 yield Ok(axum::response::sse::Event::default()
                     .event("log")
-                    .data(format!("> [1/4] Warning: embedding failed ({}) -- proceeding without context", e.message())));
+                    .data(format!("> [1/5] Warning: embedding failed ({}) -- proceeding without context", e.message())));
+            }
+        }
+
+        // Prepend thread history to context so LLM sees the full conversation
+        if let Some(ref msgs) = request.thread {
+            if !msgs.is_empty() {
+                let thread_ctx = msgs
+                    .iter()
+                    .map(|m| format!("[{}]: {}", m.role, m.content))
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                context_str = format!(
+                    "--- Thread History ---\n{}\n\n{}",
+                    thread_ctx, context_str
+                );
             }
         }
 
         // Stage 3: LLM call
         yield Ok(axum::response::sse::Event::default()
             .event("log")
-            .data(format!("> [3/4] Calling {} ({} context chars)...",
+            .data(format!("> [3/5] Calling {} ({} context chars)...",
                 model_name,
                 context_str.len()
             )));
@@ -312,10 +425,10 @@ pub async fn generate_email_stream_handler(
             }
         };
 
-        // Stage 4: Stream tokens
+        // Stage 4: Stream tokens (stage 4/5 — stage 5 is save+done)
         yield Ok(axum::response::sse::Event::default()
             .event("log")
-            .data("> [4/4] Streaming reply:"));
+            .data("> [4/5] Streaming reply:"));
 
         let mut full_response = String::new();
         futures_util::pin_mut!(token_stream);
@@ -343,6 +456,8 @@ pub async fn generate_email_stream_handler(
             Err(_) => None,
         };
 
+        let retrieval_ms = retrieval_start.elapsed().as_millis() as i32;
+
         match email_repo
             .create_email(user_id, &prompt, &full_response, prompt_embedding, resp_embedding)
             .await
@@ -350,11 +465,32 @@ pub async fn generate_email_stream_handler(
             Ok(email) => {
                 yield Ok(axum::response::sse::Event::default()
                     .event("log")
-                    .data(format!("> Generation complete. Saved as #{}.", &email.id.to_string()[..8])));
+                    .data(format!("> [5/5] Generation complete. Saved as #{}.", &email.id.to_string()[..8])));
                 let done_data = serde_json::json!({ "id": email.id.to_string() }).to_string();
                 yield Ok(axum::response::sse::Event::default()
                     .event("done")
                     .data(done_data));
+
+                // ── Fire-and-forget RAG quality metrics ───────────────────────
+                // Computed entirely in-process (no API calls). Runs after the
+                // SSE stream has already delivered the done event.
+                let email_id = email.id;
+                let reply_clone = full_response.clone();
+                let chunks_clone = context_chunk_texts.clone();
+                let scores_clone = retrieval_scores.clone();
+                let repo_clone = email_repo.clone();
+                tokio::spawn(async move {
+                    let chunk_refs: Vec<&str> = chunks_clone.iter().map(|s| s.as_str()).collect();
+                    let faithfulness = compute_faithfulness(&reply_clone, &chunk_refs);
+                    let precision = compute_context_precision(&scores_clone);
+                    let _ = repo_clone
+                        .update_rag_metrics(email_id, faithfulness, precision, retrieval_ms)
+                        .await;
+                    tracing::debug!(
+                        "RAG metrics saved for {}: faithfulness={:.2} precision={:.2} retrieval_ms={}",
+                        email_id, faithfulness, precision, retrieval_ms
+                    );
+                });
             }
             Err(e) => {
                 yield Ok(axum::response::sse::Event::default()

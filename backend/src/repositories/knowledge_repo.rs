@@ -158,6 +158,26 @@ impl KnowledgeRepository {
         Ok(result.rows_affected() > 0)
     }
 
+    /// Find an existing knowledge entry by title (used for re-upload detection).
+    /// Returns the first match if any, so the caller can purge stale embeddings
+    /// before inserting the refreshed version.
+    pub async fn find_entry_by_title(
+        &self,
+        title: &str,
+    ) -> Result<Option<KnowledgeEntry>, sqlx::Error> {
+        sqlx::query_as::<_, KnowledgeEntry>(
+            r#"
+            SELECT id, entry_type, title, content, created_at, updated_at
+            FROM knowledge_entries
+            WHERE title = $1
+            LIMIT 1
+            "#,
+        )
+        .bind(title)
+        .fetch_optional(&*self.pool)
+        .await
+    }
+
     /// Increment `retrieval_count` for each KB entry that was hit during generation.
     /// Called from the stream handler after every RAG retrieval.
     pub async fn increment_retrieval_counts(&self, entry_ids: &[Uuid]) -> Result<(), sqlx::Error> {

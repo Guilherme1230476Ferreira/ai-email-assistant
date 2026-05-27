@@ -128,6 +128,8 @@ impl AppState {
             &config.embedding_api_url,
             &config.embedding_api_key,
             &config.embedding_model,
+            &config.reranker_api_key,
+            &config.reranker_model,
             pool.clone(),
         ));
 

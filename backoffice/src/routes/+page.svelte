@@ -38,7 +38,9 @@
     kbHitRate: Math.round((data.telemetry?.kb_hit_rate || 0) * 100) + '%',
     avgSimilarityScore: (data.telemetry?.avg_similarity_score || 0).toFixed(2),
     charsProcessed: data.telemetry?.chars_processed || 0,
-    knowledgeMatches: data.telemetry?.knowledge_matches || 0
+    knowledgeMatches: data.telemetry?.knowledge_matches || 0,
+    avgFaithfulness: Math.round((data.telemetry?.avg_faithfulness || 0) * 100),
+    avgContextPrecision: Math.round((data.telemetry?.avg_context_precision || 0) * 100),
   });
 
   // Calculate the vertices of the knowledge triangle based on real pgvector metrics
@@ -262,6 +264,39 @@
         <div class="p-3 rounded-md bg-[var(--color-surface-2)] flex flex-col gap-1">
           <span class="text-[10px] text-[var(--color-muted-foreground)] uppercase font-semibold">{t('dash.knowledge_matches', currentLocale)}</span>
           <span class="text-lg font-bold text-white">{ragMetrics.knowledgeMatches}</span>
+        </div>
+        <!-- Faithfulness gauge -->
+        <div class="p-3 rounded-md bg-[var(--color-surface-2)] flex flex-col gap-2 col-span-2">
+          <div class="flex items-center justify-between">
+            <span class="text-[10px] text-[var(--color-muted-foreground)] uppercase font-semibold">Avg Faithfulness</span>
+            <span class="text-xs font-bold {ragMetrics.avgFaithfulness >= 70 ? 'text-emerald-400' : ragMetrics.avgFaithfulness >= 40 ? 'text-yellow-400' : 'text-rose-400'}">
+              {ragMetrics.avgFaithfulness}%
+            </span>
+          </div>
+          <div class="w-full bg-[var(--color-surface)] h-1.5 rounded-full overflow-hidden">
+            <div class="h-full rounded-full transition-all duration-700
+              {ragMetrics.avgFaithfulness >= 70 ? 'bg-emerald-400' : ragMetrics.avgFaithfulness >= 40 ? 'bg-yellow-400' : 'bg-rose-400'}"
+              style="width: {ragMetrics.avgFaithfulness}%">
+            </div>
+          </div>
+          <p class="text-[10px] text-[var(--color-muted)] leading-relaxed">
+            How well replies stay grounded in retrieved context. Higher = less hallucination risk.
+          </p>
+        </div>
+        <!-- Context precision gauge -->
+        <div class="p-3 rounded-md bg-[var(--color-surface-2)] flex flex-col gap-2 col-span-2">
+          <div class="flex items-center justify-between">
+            <span class="text-[10px] text-[var(--color-muted-foreground)] uppercase font-semibold">Avg Context Precision</span>
+            <span class="text-xs font-bold text-[var(--color-accent)]">{ragMetrics.avgContextPrecision}%</span>
+          </div>
+          <div class="w-full bg-[var(--color-surface)] h-1.5 rounded-full overflow-hidden">
+            <div class="h-full bg-[var(--color-accent)] rounded-full transition-all duration-700"
+              style="width: {ragMetrics.avgContextPrecision}%">
+            </div>
+          </div>
+          <p class="text-[10px] text-[var(--color-muted)] leading-relaxed">
+            Mean hybrid similarity score of retrieved chunks. Higher = more relevant knowledge retrieved.
+          </p>
         </div>
       </div>
     </div>

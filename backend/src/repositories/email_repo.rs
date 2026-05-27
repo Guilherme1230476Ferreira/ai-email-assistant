@@ -111,6 +111,34 @@ impl EmailRepository {
         Ok(record.count.unwrap_or(0))
     }
 
+    /// Persist per-generation RAG quality metrics.
+    /// Called fire-and-forget after stream completes — errors are silently ignored
+    /// so they never affect the user-visible response.
+    pub async fn update_rag_metrics(
+        &self,
+        email_id: Uuid,
+        faithfulness: f32,
+        context_precision: f32,
+        retrieval_ms: i32,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query(
+            r#"
+            UPDATE emails
+            SET faithfulness_score = $2,
+                context_precision  = $3,
+                retrieval_ms       = $4
+            WHERE id = $1
+            "#,
+        )
+        .bind(email_id)
+        .bind(faithfulness as f64)
+        .bind(context_precision as f64)
+        .bind(retrieval_ms)
+        .execute(&*self.pool)
+        .await?;
+        Ok(())
+    }
+
     /// Delete an email by ID, scoped to the owning user for security.
     /// Email embeddings are deleted via ON DELETE CASCADE.
     pub async fn delete_email(&self, email_id: Uuid, user_id: Uuid) -> Result<bool, sqlx::Error> {
@@ -163,13 +191,15 @@ impl EmailRepository {
                 SUM(LENGTH(COALESCE(e.generated_response,'')) +
                     LENGTH(e.original_content))                                      AS total_chars,
                 COUNT(ee.id)                                                         AS emails_with_embedding,
-                -- cosine similarity between prompt and response embeddings:
-                -- a good proxy when we don't store per-retrieval scores
+                -- cosine similarity between prompt and response embeddings
                 AVG(CASE
                     WHEN ee.content_embedding IS NOT NULL AND ee.response_embedding IS NOT NULL
                     THEN (1.0 - (ee.content_embedding <=> ee.response_embedding))
                     ELSE NULL
-                END)                                                                 AS avg_self_similarity
+                END)                                                                 AS avg_self_similarity,
+                -- RAG quality metrics (populated post-generation)
+                AVG(e.faithfulness_score)                                            AS avg_faithfulness,
+                AVG(e.context_precision)                                             AS avg_context_precision
             FROM emails e
             LEFT JOIN email_embeddings ee ON e.id = ee.email_id
             WHERE e.user_id = $1
@@ -196,6 +226,8 @@ impl EmailRepository {
         let total_chars     = email_record.total_chars.unwrap_or(0) as i64;
         let emails_embedded = email_record.emails_with_embedding.unwrap_or(0) as f64;
         let avg_similarity  = email_record.avg_self_similarity.unwrap_or(0.0);
+        let avg_faithfulness     = email_record.avg_faithfulness.unwrap_or(0.0);
+        let avg_context_precision = email_record.avg_context_precision.unwrap_or(0.0);
         let kb_chunks       = kb_record.total_kb_chunks.unwrap_or(0) as i64;
 
         // Embedding coverage: share of emails that have a vector stored
@@ -224,6 +256,8 @@ impl EmailRepository {
             chars_processed: total_chars,
             knowledge_matches,
             kb_hit_rate,
+            avg_faithfulness,
+            avg_context_precision,
         })
     }
 

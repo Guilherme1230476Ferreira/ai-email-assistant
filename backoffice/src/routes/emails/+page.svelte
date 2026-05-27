@@ -15,6 +15,11 @@
   let isModalOpen = $state(false);
   let promptText = $state('');
 
+  // Thread history state
+  let showThread = $state(false);
+  let threadText = $state('');
+  type ThreadMsg = { role: string; content: string };
+
   // Generation states
   let isGenerating = $state(false);
   let processingStep = $state<'idle' | 'gathering' | 'generating'>('idle');
@@ -53,6 +58,8 @@
     promptText = '';
     terminalLogs = [];
     processingStep = 'idle';
+    showThread = false;
+    threadText = '';
   }
 
   function closeModal() {
@@ -76,6 +83,23 @@
     // Flag to know when to start appending tokens on the last line
     let streamingTokens = false;
 
+    // Parse thread messages from the textarea (format: "user: ...", "assistant: ...")
+    let thread: ThreadMsg[] | undefined = undefined;
+    if (showThread && threadText.trim()) {
+      thread = threadText
+        .split('\n')
+        .map(line => line.trim())
+        .filter(line => line.includes(': '))
+        .map(line => {
+          const colonIdx = line.indexOf(': ');
+          return {
+            role: line.slice(0, colonIdx).toLowerCase().replace('you', 'assistant'),
+            content: line.slice(colonIdx + 2)
+          };
+        })
+        .filter(m => m.role === 'user' || m.role === 'assistant');
+    }
+
     await api.generateEmailStream(
         promptText,
         (token) => {
@@ -95,6 +119,8 @@
         },
         async () => {
             promptText = '';
+            threadText = '';
+            showThread = false;
             isGenerating = false;
             processingStep = 'idle';
             isModalOpen = false;
@@ -103,12 +129,13 @@
         (msg: string) => {
             // Real backend log event — push to terminal
             terminalLogs = [...terminalLogs, msg];
-            // When stage 4 log arrives, prepare token stream line
-            if (msg.includes('[4/4]')) {
+            // When stage 4/5 log arrives, prepare token stream line
+            if (msg.includes('[4/5]')) {
                 processingStep = 'generating';
                 streamingTokens = false; // next token triggers new line
             }
-        }
+        },
+        thread
     );
   }
 
@@ -403,6 +430,41 @@
                 class="w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface-2)] p-3 text-sm text-white focus:border-[var(--color-accent)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)]"
                 placeholder={t('emails.prompt_placeholder', currentLocale)}
               ></textarea>
+            </div>
+
+            <!-- Thread history toggle -->
+            <div class="rounded-md border border-[var(--color-border)] bg-[var(--color-surface-2)]/40 overflow-hidden">
+              <button
+                type="button"
+                onclick={() => showThread = !showThread}
+                class="w-full flex items-center justify-between px-3 py-2.5 text-xs text-[var(--color-muted-foreground)] hover:text-white transition-colors"
+              >
+                <span class="flex items-center gap-1.5">
+                  <GitBranch class="h-3.5 w-3.5 text-[var(--color-accent)]"/>
+                  Add thread history
+                  {#if threadText.trim()}
+                    <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-[var(--color-accent)]/20 text-[var(--color-accent)] border border-[var(--color-accent)]/30">active</span>
+                  {/if}
+                </span>
+                {#if showThread}
+                  <ChevronUp class="h-3.5 w-3.5" />
+                {:else}
+                  <ChevronDown class="h-3.5 w-3.5" />
+                {/if}
+              </button>
+              {#if showThread}
+                <div class="border-t border-[var(--color-border)] px-3 pb-3 pt-2">
+                  <p class="text-[11px] text-[var(--color-muted)] mb-2 leading-relaxed">
+                    Paste prior conversation turns, one per line. Format: <code class="bg-[var(--color-surface)] px-1 rounded text-[var(--color-accent)]">user: message</code> or <code class="bg-[var(--color-surface)] px-1 rounded text-[var(--color-accent)]">assistant: message</code>
+                  </p>
+                  <textarea
+                    bind:value={threadText}
+                    rows="4"
+                    placeholder={`user: Hello, regarding our project deadline...\nassistant: Thank you for reaching out...\nuser: I need an extension.`}
+                    class="w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] p-2.5 text-xs text-white font-mono placeholder:text-[var(--color-muted)]/60 focus:border-[var(--color-accent)] focus:outline-none focus:ring-1 focus:ring-[var(--color-accent)] resize-none"
+                  ></textarea>
+                </div>
+              {/if}
             </div>
 
             <!-- Honest context info -->

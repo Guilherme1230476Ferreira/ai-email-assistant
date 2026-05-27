@@ -23,6 +23,10 @@ pub struct Config {
     pub embedding_api_url: String,
     pub embedding_api_key: String,
     pub embedding_model: String,
+    /// Jina reranker API key (defaults to EMBEDDING_API_KEY if unset)
+    pub reranker_api_key: String,
+    /// Jina reranker model name
+    pub reranker_model: String,
     pub google_client_id: Option<String>,
     pub google_client_secret: Option<String>,
     /// The public-facing URL where users access the app (e.g. http://vs224.dei.isep.ipp.pt:2224).
@@ -84,6 +88,12 @@ impl Config {
         let embedding_model =
             env::var("EMBEDDING_MODEL").unwrap_or_else(|_| "text-embedding-3-small".to_string());
 
+        // Reranker: defaults to same key/model as embeddings (Jina account)
+        let reranker_api_key = env::var("RERANKER_API_KEY")
+            .unwrap_or_else(|_| embedding_api_key.clone());
+        let reranker_model = env::var("RERANKER_MODEL")
+            .unwrap_or_else(|_| "jina-reranker-v2-base-multilingual".to_string());
+
         let port = env::var("PORT")
             .ok()
             .and_then(|raw| raw.parse::<u16>().ok())
@@ -110,6 +120,8 @@ impl Config {
             embedding_api_url,
             embedding_api_key,
             embedding_model,
+            reranker_api_key,
+            reranker_model,
             public_url,
         })
     }
@@ -128,6 +140,8 @@ impl Default for Config {
             embedding_api_url: "http://localhost".to_string(),
             embedding_api_key: "".to_string(),
             embedding_model: "test-model".to_string(),
+            reranker_api_key: "".to_string(),
+            reranker_model: "jina-reranker-v2-base-multilingual".to_string(),
             google_client_id: None,
             google_client_secret: None,
             public_url: "http://localhost:5173".to_string(),

@@ -53,6 +53,7 @@ tokio-stream = "0.1.18"
 async-stream = "0.3"
 pdf-extract = "0.7"
 text-splitter = "0.16"
+whatlang = "0.16"
 
 # RAG Framework
 rig-core = { version = "0.36", features = ["derive"] }

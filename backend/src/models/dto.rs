@@ -17,6 +17,10 @@ pub struct TelemetryData {
     pub knowledge_matches: i64,
     /// Ratio of emails that retrieved at least one KB chunk
     pub kb_hit_rate: f64,
+    /// Average RAG faithfulness score (0–1): how well replies stay grounded in context
+    pub avg_faithfulness: f64,
+    /// Average context precision (0–1): mean hybrid similarity score of retrieved chunks
+    pub avg_context_precision: f64,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -131,10 +135,22 @@ pub struct LogsQuery {
 
 use super::domain::Email;
 
+/// A single message in an email thread, used for thread-aware RAG retrieval.
+#[derive(Debug, Serialize, Deserialize, ToSchema, Clone)]
+pub struct ThreadMessage {
+    /// "user" for received messages, "assistant" for AI-generated replies.
+    pub role: String,
+    pub content: String,
+}
+
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
 pub struct GenerateEmailRequest {
     #[schema(example = "Write a follow-up email to a client who missed a meeting.")]
     pub prompt: String,
+    /// Optional prior messages in this thread (oldest first).
+    /// When provided, the thread context is prepended to the retrieval query
+    /// and injected into the LLM prompt as prior conversation turns.
+    pub thread: Option<Vec<ThreadMessage>>,
 }
 
 #[derive(Debug, Serialize, Deserialize, ToSchema)]
