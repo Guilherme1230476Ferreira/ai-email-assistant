@@ -310,7 +310,7 @@ impl PgVectorIndex {
                 CASE WHEN $2 = '' THEN 0.0 ELSE
                 COALESCE(
                     ts_rank_cd(kc.chunk_tsv,
-                               plainto_tsquery('simple', $2),
+                               websearch_to_tsquery('simple', $2),
                                32),          -- 32 = normalise by document length
                     0.0
                 ) END::float8                                               AS bm25_simple,
@@ -318,7 +318,7 @@ impl PgVectorIndex {
                 COALESCE(
                     ts_rank_cd(
                         to_tsvector($3::regconfig, kc.chunk_text),
-                        plainto_tsquery($3::regconfig, $2),
+                        websearch_to_tsquery($3::regconfig, $2),
                         32),
                     0.0
                 ) END::float8                                               AS bm25_lang
@@ -330,17 +330,18 @@ impl PgVectorIndex {
                 (0.35 * (
                     CASE WHEN $2 = '' THEN 0.0 ELSE
                     GREATEST(
-                        COALESCE(ts_rank_cd(kc.chunk_tsv, plainto_tsquery('simple', $2), 32), 0.0),
-                        COALESCE(ts_rank_cd(to_tsvector($3::regconfig, kc.chunk_text), plainto_tsquery($3::regconfig, $2), 32), 0.0)
+                        COALESCE(ts_rank_cd(kc.chunk_tsv, websearch_to_tsquery('simple', $2), 32), 0.0),
+                        COALESCE(ts_rank_cd(to_tsvector($3::regconfig, kc.chunk_text), websearch_to_tsquery($3::regconfig, $2), 32), 0.0)
                     ) END
                 )) DESC
-            LIMIT $4
+            LIMIT $5
             "#,
         )
         .bind(&vec)
         .bind(query_text)
         .bind(ts_config)
-        .bind(limit * 2)   // over-fetch so BM25 re-ranking has room
+        .bind(limit)
+        .bind(limit * 8)   // over-fetch 40 candidates so Jina Reranker has plenty of room
         .fetch_all(&*self.pool)
         .await
         .unwrap_or_default();
