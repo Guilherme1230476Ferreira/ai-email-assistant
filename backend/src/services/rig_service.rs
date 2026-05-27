@@ -307,23 +307,33 @@ impl PgVectorIndex {
                 ke.title,
                 kc.chunk_text,
                 (1.0 - (kc.embedding <=> $1))                          AS semantic_score,
+                CASE WHEN $2 = '' THEN 0.0 ELSE
                 COALESCE(
                     ts_rank_cd(kc.chunk_tsv,
                                plainto_tsquery('simple', $2),
                                32),          -- 32 = normalise by document length
                     0.0
-                )::float8                                               AS bm25_simple,
+                ) END::float8                                               AS bm25_simple,
+                CASE WHEN $2 = '' THEN 0.0 ELSE
                 COALESCE(
                     ts_rank_cd(
                         to_tsvector($3::regconfig, kc.chunk_text),
                         plainto_tsquery($3::regconfig, $2),
                         32),
                     0.0
-                )::float8                                               AS bm25_lang
+                ) END::float8                                               AS bm25_lang
             FROM knowledge_embeddings kc
             JOIN knowledge_entries ke ON kc.entry_id = ke.id
             WHERE kc.embedding IS NOT NULL
-            ORDER BY kc.embedding <=> $1
+            ORDER BY 
+                (0.65 * (1.0 - (kc.embedding <=> $1))) + 
+                (0.35 * (
+                    CASE WHEN $2 = '' THEN 0.0 ELSE
+                    GREATEST(
+                        COALESCE(ts_rank_cd(kc.chunk_tsv, plainto_tsquery('simple', $2), 32), 0.0),
+                        COALESCE(ts_rank_cd(to_tsvector($3::regconfig, kc.chunk_text), plainto_tsquery($3::regconfig, $2), 32), 0.0)
+                    ) END
+                )) DESC
             LIMIT $4
             "#,
         )
