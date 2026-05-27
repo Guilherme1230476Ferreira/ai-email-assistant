@@ -315,8 +315,8 @@ impl PgVectorIndex {
                 )::float8                                               AS bm25_simple,
                 COALESCE(
                     ts_rank_cd(
-                        to_tsvector($3, kc.chunk_text),
-                        plainto_tsquery($3, $2),
+                        to_tsvector($3::regconfig, kc.chunk_text),
+                        plainto_tsquery($3::regconfig, $2),
                         32),
                     0.0
                 )::float8                                               AS bm25_lang

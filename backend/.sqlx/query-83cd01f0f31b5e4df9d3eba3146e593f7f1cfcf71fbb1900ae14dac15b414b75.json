@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                COUNT(e.id)                                                          AS total_emails,\n                SUM(LENGTH(COALESCE(e.generated_response,'')) +\n                    LENGTH(e.original_content))                                      AS total_chars,\n                COUNT(ee.id)                                                         AS emails_with_embedding,\n                -- cosine similarity between prompt and response embeddings\n                AVG(CASE\n                    WHEN ee.content_embedding IS NOT NULL AND ee.response_embedding IS NOT NULL\n                    THEN (1.0 - (ee.content_embedding <=> ee.response_embedding))\n                    ELSE NULL\n                END)                                                                 AS avg_self_similarity,\n                -- RAG quality metrics (populated post-generation)\n                AVG(e.faithfulness_score)                                            AS avg_faithfulness,\n                AVG(e.context_precision)                                             AS avg_context_precision\n            FROM emails e\n            LEFT JOIN email_embeddings ee ON e.id = ee.email_id\n            WHERE e.user_id = $1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "total_emails",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 1,
+        "name": "total_chars",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 2,
+        "name": "emails_with_embedding",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 3,
+        "name": "avg_self_similarity",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 4,
+        "name": "avg_faithfulness",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 5,
+        "name": "avg_context_precision",
+        "type_info": "Float8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "83cd01f0f31b5e4df9d3eba3146e593f7f1cfcf71fbb1900ae14dac15b414b75"
+}
